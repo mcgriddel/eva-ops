@@ -64,6 +64,7 @@ const sb = createClient('https://iapwfxbfwlnibyucetca.supabase.co', 'sb_publisha
 const FN = 'https://iapwfxbfwlnibyucetca.supabase.co' + '/functions/v1/ops-send';
 const app = document.getElementById('app');
 let tab = 'inbox', session = null, timer = null, openPhone = null;
+const proposeOpen = {}; // booking id → true while the "yes, but…" editor is open
 
 function esc(s){ return String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 function toast(m){ const t = document.getElementById('toast'); t.textContent = m; t.style.opacity = 1; setTimeout(() => t.style.opacity = 0, 2600); }
@@ -138,19 +139,22 @@ async function bookingsView(){
   if(!bks || !bks.length){ app.innerHTML = '<p class="muted">No bookings yet.</p>'; return; }
   app.innerHTML = bks.map(b => {
     const acts = b.state === 'pending_salon' || b.state === 'received'
-      ? '<div style="width:100%">' + (slotPassed(b) ? '<div style="color:#C0392B;font-weight:700;font-size:12.5px;margin-bottom:8px">⚠ The requested slot time has already passed — propose a new time or cancel.</div>' : '') +
-        '<button class="act" data-a="confirm" data-id="' + b.id + '" style="width:100%">Salon said yes — confirm as requested ✓</button>' +
-        '<div style="border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin-top:10px;background:var(--paper)">' +
-          '<div style="font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--soft);margin-bottom:2px">Salon proposes a change</div>' +
-          '<div class="row" style="justify-content:flex-start">' +
-            '<span class="muted">time</span><input type="time" data-time="' + b.id + '" value="' + esc((b.slot_time || '').slice(0,5)) + '" style="width:118px;margin:0">' +
-            '<span class="muted">people</span><input type="number" min="1" max="6" value="' + (b.party_size || 1) + '" data-party="' + b.id + '" style="width:60px;margin:0">' +
-            '<button class="act ghost" data-a="propose" data-id="' + b.id + '">Send proposal → client</button></div>' +
-          '<div class="muted" style="margin-top:6px">She gets « Ça vous va ? Répondez OUI » and decides. On her OUI, press confirm above.</div>' +
-        '</div>' +
-        '<div class="row" style="justify-content:flex-end;margin-top:10px">' +
-          '<button class="act ghost" data-a="cancel" data-id="' + b.id + '" style="border-color:var(--line);color:var(--grey)">Salon refuses</button>' +
-          '<button class="act ghost" data-a="cancel_client" data-id="' + b.id + '" data-ref="' + esc(b.ref) + '" style="border-color:var(--line);color:var(--grey)">Client cancels</button></div></div>'
+      ? '<div style="width:100%">' + (slotPassed(b) ? '<div style="color:#C0392B;font-weight:700;font-size:12.5px;margin-bottom:8px">⚠ The requested slot time has already passed — answer « yes, but… » with a new time, or « no ».</div>' : '') +
+        (proposeOpen[b.id]
+          ? '<div style="font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--soft);margin-bottom:6px">The salon says yes, but… what can it offer?</div>' +
+            '<div class="row" style="justify-content:flex-start">' +
+              '<span class="muted">time</span><input type="time" data-time="' + b.id + '" value="' + esc((b.slot_time || '').slice(0,5)) + '" style="width:118px;margin:0">' +
+              '<span class="muted">people</span><input type="number" min="1" max="6" value="' + (b.party_size || 1) + '" data-party="' + b.id + '" style="width:60px;margin:0">' +
+              '<button class="act" data-a="propose" data-id="' + b.id + '">Send offer to client</button>' +
+              '<button class="act ghost" data-a="propose_back" data-id="' + b.id + '">← back</button></div>' +
+            '<div class="muted" style="margin-top:6px">She answers OUI (or not) on WhatsApp — when she does, come back and press « Yes ».</div>'
+          : '<div style="font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--soft);margin-bottom:6px">What does the salon say?</div>' +
+            '<div class="row" style="justify-content:flex-start">' +
+              '<button class="act" data-a="confirm" data-id="' + b.id + '">Yes ✓ — confirm</button>' +
+              '<button class="act ghost" data-a="propose_open" data-id="' + b.id + '">Yes, but…</button>' +
+              '<button class="act ghost" data-a="cancel" data-id="' + b.id + '">No — refuse</button></div>' +
+            '<div class="row" style="justify-content:flex-end;margin-top:4px"><button data-a="cancel_client" data-id="' + b.id + '" data-ref="' + esc(b.ref) + '" style="border:0;background:none;color:var(--grey);font-size:12px;text-decoration:underline;cursor:pointer">client cancelled?</button></div>') +
+        '</div>'
       : b.state === 'confirmed' || b.state === 'reminded'
       ? '<div style="width:100%"><div class="muted" style="margin-bottom:6px">After the visit — did she come? (this triggers the salon fee)</div>' +
         '<div class="row" style="justify-content:flex-start"><button class="act" data-a="showed" data-id="' + b.id + '">She came</button>' +
@@ -171,10 +175,13 @@ async function bookingsView(){
     if(a === 'confirm'){ await ops({ action:'confirm_booking', booking_id:id }); }
     else if(a === 'cancel'){ await ops({ action:'cancel_booking', booking_id:id }); }
     else if(a === 'cancel_client'){ await ops({ action:'cancel_booking', booking_id:id, message: "C'est annulé ✔ (" + el.dataset.ref + ") — à très bientôt 🌸" }); }
+    else if(a === 'propose_open'){ proposeOpen[id] = true; refresh(); return; }
+    else if(a === 'propose_back'){ delete proposeOpen[id]; refresh(); return; }
     else if(a === 'propose'){
       const t = app.querySelector('[data-time="' + id + '"]')?.value || undefined;
       const n = app.querySelector('[data-party="' + id + '"]')?.value || undefined;
       await ops({ action:'propose_alternative', booking_id:id, slot_time:t, party_size:n ? +n : undefined });
+      delete proposeOpen[id];
     }
     else { const { error } = await sb.from('bookings').update({ state:a, updated_at:new Date().toISOString() }).eq('id', id); if(error) toast(error.message); }
     refresh();
