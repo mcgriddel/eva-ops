@@ -148,7 +148,9 @@ async function bookingsView(){
               '<button class="act" data-a="propose" data-id="' + b.id + '">Send offer to client</button>' +
               '<button class="act ghost" data-a="propose_back" data-id="' + b.id + '">← back</button></div>' +
             '<div class="muted" style="margin-top:6px">She answers OUI (or not) on WhatsApp — when she does, come back and press « Yes ».</div>'
-          : '<div style="font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--soft);margin-bottom:6px">What does the salon say?</div>' +
+          : (b.salon_pinged_at
+              ? '<div style="font-size:12.5px;color:var(--ok);font-weight:600;margin-bottom:6px">📲 Salon pinged on WhatsApp at ' + new Date(b.salon_pinged_at).toLocaleTimeString().slice(0,5) + ' — their tap confirms or refuses automatically. Nothing to do unless they answer YOU instead:</div>'
+              : '<div style="font-size:12.5px;color:var(--warn);font-weight:600;margin-bottom:6px">☎️ No automatic ping for this booking (no salon WhatsApp on file) — relay the salon\'s answer here:</div>') +
             '<div class="row" style="justify-content:flex-start">' +
               '<button class="act ghost" data-a="confirm" data-id="' + b.id + '" style="border-color:var(--ok);color:var(--ok)">Yes — send confirmation ✓</button>' +
               '<button class="act ghost" data-a="propose_open" data-id="' + b.id + '" style="border-color:var(--warn);color:var(--warn)">Yes, but…</button>' +
