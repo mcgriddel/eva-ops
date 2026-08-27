@@ -65,6 +65,7 @@ const FN = 'https://iapwfxbfwlnibyucetca.supabase.co' + '/functions/v1/ops-send'
 const app = document.getElementById('app');
 let tab = 'inbox', session = null, timer = null, openPhone = null;
 const proposeOpen = {}; // booking id → true while the "yes, but…" editor is open
+const manualOpen = {};  // booking id → true while the manual-relay buttons are expanded
 
 function esc(s){ return String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 function toast(m){ const t = document.getElementById('toast'); t.textContent = m; t.style.opacity = 1; setTimeout(() => t.style.opacity = 0, 2600); }
@@ -134,56 +135,95 @@ function slotPassed(b){
 }
 async function bookingsView(){
   const { data: bks, error } = await sb.from('bookings')
-    .select('*, deals(service_name), salons(name), practitioners(first_name)').order('created_at', { ascending:false }).limit(100);
+    .select('*, deals(service_name), salons(name, owner_whatsapp), practitioners(first_name)').order('created_at', { ascending:false }).limit(100);
   if(error){ app.innerHTML = '<p class="muted">' + esc(error.message) + '</p>'; return; }
   if(!bks || !bks.length){ app.innerHTML = '<p class="muted">No bookings yet.</p>'; return; }
+  const { data: msgs } = await sb.from('wa_messages')
+    .select('booking_id, direction, customer_phone, body, created_at')
+    .in('booking_id', bks.map(b => b.id)).order('created_at');
+  const tlById = {};
+  for(const m of (msgs || [])){ (tlById[m.booking_id] = tlById[m.booking_id] || []).push(m); }
+
+  const hhmmT = ts => new Date(ts).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
+  function who(b, m){
+    const owner = (b.salons?.owner_whatsapp || '').replace(/\D/g, '');
+    const salonish = /^Nouvelle réservation|^C'est noté — EVA|^Pas de souci|^Réservation introuvable/.test(m.body || '')
+      || (owner && m.customer_phone === owner && owner !== b.customer_phone);
+    const side = salonish ? 'salon' : 'client';
+    return m.direction === 'in' ? side + ' →' : '→ ' + side;
+  }
+  function timeline(b){
+    const evs = tlById[b.id] || [];
+    if(!evs.length) return '';
+    return '<div style="border-left:2px solid var(--line);margin:10px 0 2px;padding-left:10px;display:flex;flex-direction:column;gap:3px">' +
+      evs.map(m => '<div class="muted" style="font-size:12px"><span style="font-variant-numeric:tabular-nums">' + hhmmT(m.created_at) + '</span>' +
+        ' <b style="color:var(--soft)">' + who(b, m) + '</b> ' + esc((m.body || '').slice(0, 64)) + ((m.body || '').length > 64 ? '…' : '') + '</div>').join('') + '</div>';
+  }
+  const relayButtons = b =>
+    '<div class="row" style="justify-content:flex-start;margin-top:8px">' +
+      '<button class="act ghost" data-a="confirm" data-id="' + b.id + '" style="border-color:var(--ok);color:var(--ok)">Salon says yes → confirm</button>' +
+      '<button class="act ghost" data-a="propose_open" data-id="' + b.id + '" style="border-color:var(--warn);color:var(--warn)">Yes, but…</button>' +
+      '<button class="act ghost" data-a="cancel" data-id="' + b.id + '" style="border-color:#C0392B;color:#C0392B">No → refuse</button>' +
+      '<button data-a="cancel_client" data-id="' + b.id + '" data-ref="' + esc(b.ref) + '" style="border:0;background:none;color:var(--grey);font-size:12px;text-decoration:underline;cursor:pointer">client cancelled?</button></div>';
+
   app.innerHTML = bks.map(b => {
-    const acts = b.state === 'pending_salon' || b.state === 'received'
-      ? '<div style="width:100%">' + (slotPassed(b) ? '<div style="color:#C0392B;font-weight:700;font-size:12.5px;margin-bottom:8px">⚠ The requested slot time has already passed — answer « yes, but… » with a new time, or « no ».</div>' : '') +
-        (proposeOpen[b.id]
-          ? '<div style="font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--soft);margin-bottom:6px">The salon says yes, but… what can it offer?</div>' +
-            '<div class="row" style="justify-content:flex-start">' +
-              '<span class="muted">time</span><input type="time" data-time="' + b.id + '" value="' + esc((b.slot_time || '').slice(0,5)) + '" style="width:118px;margin:0">' +
-              '<span class="muted">people</span><input type="number" min="1" max="6" value="' + (b.party_size || 1) + '" data-party="' + b.id + '" style="width:60px;margin:0">' +
-              '<button class="act" data-a="propose" data-id="' + b.id + '">Send offer to client</button>' +
-              '<button class="act ghost" data-a="propose_back" data-id="' + b.id + '">← back</button></div>' +
-            '<div class="muted" style="margin-top:6px">She answers OUI (or not) on WhatsApp — when she does, come back and press « Yes ».</div>'
-          : (b.salon_pinged_at
-              ? '<div style="font-size:12.5px;color:var(--ok);font-weight:600;margin-bottom:6px">📲 Salon pinged on WhatsApp at ' + new Date(b.salon_pinged_at).toLocaleTimeString().slice(0,5) + ' — their tap confirms or refuses automatically. Nothing to do unless they answer YOU instead:</div>'
-              : '<div style="font-size:12.5px;color:var(--warn);font-weight:600;margin-bottom:6px">☎️ No automatic ping for this booking (no salon WhatsApp on file) — relay the salon\'s answer here:</div>') +
-            '<div class="row" style="justify-content:flex-start">' +
-              '<button class="act ghost" data-a="confirm" data-id="' + b.id + '" style="border-color:var(--ok);color:var(--ok)">Yes — send confirmation ✓</button>' +
-              '<button class="act ghost" data-a="propose_open" data-id="' + b.id + '" style="border-color:var(--warn);color:var(--warn)">Yes, but…</button>' +
-              '<button class="act ghost" data-a="cancel" data-id="' + b.id + '" style="border-color:#C0392B;color:#C0392B">No — send refusal</button></div>' +
-            '<div class="row" style="justify-content:flex-end;margin-top:4px"><button data-a="cancel_client" data-id="' + b.id + '" data-ref="' + esc(b.ref) + '" style="border:0;background:none;color:var(--grey);font-size:12px;text-decoration:underline;cursor:pointer">client cancelled?</button></div>') +
-        '</div>'
-      : b.state === 'confirmed' || b.state === 'reminded'
-      ? '<div style="width:100%"><div class="muted" style="margin-bottom:6px">After the visit — did she come? (this triggers the salon fee)</div>' +
-        '<div class="row" style="justify-content:flex-start"><button class="act" data-a="showed" data-id="' + b.id + '">She came</button>' +
-        '<button class="act ghost" data-a="no_show" data-id="' + b.id + '">No-show</button></div></div>' : '';
     const waitMin = b.state === 'pending_salon' ? Math.round((Date.now() - new Date(b.created_at)) / 60000) : null;
     const waitBadge = waitMin === null ? '' :
       '<span class="pill' + (waitMin > 15 ? ' pending' : '') + '">waiting ' + (waitMin >= 60 ? Math.floor(waitMin/60) + 'h' + String(waitMin%60).padStart(2,'0') : waitMin + ' min') + '</span>';
+    let status = '', act = '';
+    if(b.state === 'pending_salon' || b.state === 'received'){
+      const warn = slotPassed(b) ? '<div style="color:#C0392B;font-weight:700;font-size:12.5px;margin-top:8px">⚠ The requested slot has passed — propose a new time or refuse.</div>' : '';
+      if(proposeOpen[b.id]){
+        status = warn;
+        act = '<div style="font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--soft);margin:8px 0 6px">Salon says yes, but… what can it offer?</div>' +
+          '<div class="row" style="justify-content:flex-start">' +
+          '<span class="muted">time</span><input type="time" data-time="' + b.id + '" value="' + esc((b.slot_time || '').slice(0,5)) + '" style="width:118px;margin:0">' +
+          '<span class="muted">people</span><input type="number" min="1" max="6" value="' + (b.party_size || 1) + '" data-party="' + b.id + '" style="width:60px;margin:0">' +
+          '<button class="act" data-a="propose" data-id="' + b.id + '">Send offer to client</button>' +
+          '<button class="act ghost" data-a="propose_back" data-id="' + b.id + '">← back</button></div>';
+      } else if(b.salon_pinged_at){
+        status = '<div style="margin-top:8px;font-size:13.5px">⏳ <b>Waiting for the salon\'s tap</b> — pinged on WhatsApp at ' + hhmmT(b.salon_pinged_at) + '. Their tap finishes this booking automatically.</div>' + warn;
+        act = manualOpen[b.id]
+          ? relayButtons(b) + '<div class="row" style="justify-content:flex-start;margin-top:4px"><button data-a="manual_back" data-id="' + b.id + '" style="border:0;background:none;color:var(--grey);font-size:12px;text-decoration:underline;cursor:pointer">hide ↑</button></div>'
+          : '<div class="row" style="justify-content:flex-start;margin-top:6px"><button data-a="manual_open" data-id="' + b.id + '" style="border:0;background:none;color:var(--grey);font-size:12.5px;text-decoration:underline;cursor:pointer">The salon answered you directly? Answer for them →</button></div>';
+      } else {
+        status = '<div style="margin-top:8px;font-size:13.5px">☎️ <b>Manual relay needed</b> — no salon WhatsApp on file, the machine could not ping them. Ask the salon and press their answer:</div>' + warn;
+        act = relayButtons(b);
+      }
+    } else if(b.state === 'confirmed' || b.state === 'reminded'){
+      status = '<div style="margin-top:8px;font-size:13.5px">✅ <b>Confirmed</b> — client notified. After the visit:</div>';
+      act = '<div class="row" style="justify-content:flex-start;margin-top:8px"><button class="act" data-a="showed" data-id="' + b.id + '">She came</button>' +
+        '<button class="act ghost" data-a="no_show" data-id="' + b.id + '">No-show</button>' +
+        '<span class="muted">« she came » = the fee event</span></div>';
+    } else if(b.state === 'showed'){
+      status = '<div style="margin-top:8px;font-size:13.5px">💚 <b>She came</b> — completed visit, fee applies.</div>';
+    } else if(b.state === 'no_show'){
+      status = '<div style="margin-top:8px;font-size:13.5px;color:var(--grey)"><b>No-show</b> recorded — no fee.</div>';
+    } else if(b.state === 'cancelled'){
+      status = '<div style="margin-top:8px;font-size:13.5px;color:var(--grey)"><b>✕ Cancelled.</b></div>';
+    }
     return '<div class="card"><div class="row"><strong>' + esc(b.ref) + '</strong>' +
       '<span style="display:flex;gap:6px">' + waitBadge +
       '<span class="pill ' + (b.state === 'pending_salon' ? 'pending' : b.state === 'confirmed' ? 'confirmed' : '') + '">' + esc(b.state) + '</span></span></div>' +
       '<div>' + esc(b.customer_name || 'Client') + ' · +' + esc(b.customer_phone) + '</div>' +
       '<div class="muted">' + esc(b.deals?.service_name || '?') + ((b.notes || '').startsWith('Avec : ') ? ' ' + esc(b.notes.replace('Avec : ', 'avec ')) : (b.practitioners?.first_name ? ' avec ' + esc(b.practitioners.first_name) : '')) + ((b.party_size || 1) > 1 ? ' · ' + b.party_size + ' pers.' : '') + ' · ' + esc(b.salons?.name || '?') + ' · ' + esc(b.slot_date || '') + ' ' + esc((b.slot_time || '').slice(0,5)) + ' · ' + (b.price_mad ?? '?') + ' DH</div>' +
-      '<div class="row" style="margin-top:10px">' + acts + '</div></div>';
+      timeline(b) + status + act + '</div>';
   }).join('');
   app.querySelectorAll('[data-a]').forEach(el => el.onclick = async () => {
     const id = el.dataset.id, a = el.dataset.a;
+    if(a === 'manual_open'){ manualOpen[id] = true; refresh(); return; }
+    if(a === 'manual_back'){ delete manualOpen[id]; refresh(); return; }
+    if(a === 'propose_open'){ proposeOpen[id] = true; refresh(); return; }
+    if(a === 'propose_back'){ delete proposeOpen[id]; refresh(); return; }
     el.disabled = true; el.textContent = '…';
-    if(a === 'confirm'){ await ops({ action:'confirm_booking', booking_id:id }); }
-    else if(a === 'cancel'){ await ops({ action:'cancel_booking', booking_id:id }); }
-    else if(a === 'cancel_client'){ await ops({ action:'cancel_booking', booking_id:id, message: "C'est annulé ✔ (" + el.dataset.ref + ") — à très bientôt 🌸" }); }
-    else if(a === 'propose_open'){ proposeOpen[id] = true; refresh(); return; }
-    else if(a === 'propose_back'){ delete proposeOpen[id]; refresh(); return; }
+    if(a === 'confirm'){ await ops({ action:'confirm_booking', booking_id:id }); delete manualOpen[id]; }
+    else if(a === 'cancel'){ await ops({ action:'cancel_booking', booking_id:id }); delete manualOpen[id]; }
+    else if(a === 'cancel_client'){ await ops({ action:'cancel_booking', booking_id:id, message: "C'est annulé ✔ (" + el.dataset.ref + ") — à très bientôt 🌸" }); delete manualOpen[id]; }
     else if(a === 'propose'){
       const t = app.querySelector('[data-time="' + id + '"]')?.value || undefined;
       const n = app.querySelector('[data-party="' + id + '"]')?.value || undefined;
       await ops({ action:'propose_alternative', booking_id:id, slot_time:t, party_size:n ? +n : undefined });
-      delete proposeOpen[id];
+      delete proposeOpen[id]; delete manualOpen[id];
     }
     else { const { error } = await sb.from('bookings').update({ state:a, updated_at:new Date().toISOString() }).eq('id', id); if(error) toast(error.message); }
     refresh();
