@@ -52,6 +52,14 @@
   .sect .muted { font-size:12px; }
   .sect .link { margin-left:auto; }
   .zen { text-align:center; color:var(--grey); padding:18px 0 6px; font-size:14px; }
+  .btns { display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; align-items:center; }
+  button.b { display:inline-flex; flex-direction:column; align-items:center; justify-content:center; gap:0; border-radius:9px; padding:7px 16px; font-weight:650; font-size:13.5px; line-height:1.25; cursor:pointer; min-height:42px; background:#fff; border:1.5px solid var(--line); color:var(--ink); font-family:inherit; transition:border-color .15s, background .15s, opacity .15s; }
+  button.b .ov { font-size:8.5px; font-weight:700; letter-spacing:.09em; text-transform:uppercase; opacity:.65; }
+  button.b.yes { background:var(--ok); border-color:var(--ok); color:#fff; }
+  button.b.yes:hover { opacity:.88; }
+  button.b.no { border-color:#DDB9B1; color:var(--bad); background:#fff; }
+  button.b.no:hover { border-color:var(--bad); background:#FBF1EF; }
+  button.b.mid:hover { border-color:var(--ink); }
   .stat { margin-top:8px; font-size:13.5px; }
   .stat .k { display:inline-block; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.07em; color:var(--soft); background:var(--paper); border:1px solid var(--line); border-radius:5px; padding:1px 7px; margin-right:7px; vertical-align:1px; }
   .ref { color:var(--grey); font-size:12.5px; font-weight:400; }
@@ -189,24 +197,24 @@ function pingStatus(ping){
   return 'ping sent at ' + hhmmT(ping.created_at);
 }
 const relayButtons = b =>
-  '<div class="row" style="justify-content:flex-start;margin-top:8px">' +
-    '<button class="act ghost" data-a="confirm" data-id="' + b.id + '">Salon says yes → confirm</button>' +
-    '<button class="act ghost" data-a="propose_open" data-id="' + b.id + '">Salon says yes, but…</button>' +
-    '<button class="act ghost" data-a="cancel" data-id="' + b.id + '">Salon says no → refuse</button>' +
+  '<div class="btns">' +
+    '<button class="b yes" data-a="confirm" data-id="' + b.id + '"><span class="ov">salon says</span><span>Yes&nbsp;·&nbsp;confirm ✓</span></button>' +
+    '<button class="b mid" data-a="propose_open" data-id="' + b.id + '"><span class="ov">salon says</span><span>Yes, but…</span></button>' +
+    '<button class="b no" data-a="cancel" data-id="' + b.id + '"><span class="ov">salon says</span><span>No&nbsp;·&nbsp;refuse ✕</span></button>' +
     '<button class="link" data-a="cancel_client" data-id="' + b.id + '" data-ref="' + esc(b.ref) + '">client cancelled? → close it + tell her « C\'est annulé ✔ »</button></div>';
 function proposeEditor(b){
   return '<div style="font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--soft);margin:8px 0 6px">Salon says yes, but… what can it offer?</div>' +
     '<div class="row" style="justify-content:flex-start">' +
     '<span class="muted">time</span><input type="time" data-time="' + b.id + '" value="' + esc((b.slot_time || '').slice(0,5)) + '" style="width:118px;margin:0">' +
     '<span class="muted">people</span><input type="number" min="1" max="6" value="' + (b.party_size || 1) + '" data-party="' + b.id + '" style="width:60px;margin:0">' +
-    '<button class="act" data-a="propose" data-id="' + b.id + '">Send offer to client</button>' +
-    '<button class="act ghost" data-a="propose_back" data-id="' + b.id + '">← back</button></div>';
+    '<button class="b yes" data-a="propose" data-id="' + b.id + '">Send the offer to the client</button>' +
+    '<button class="b mid" data-a="propose_back" data-id="' + b.id + '">← back</button></div>';
 }
 function bookingHead(b){
-  return '<div class="row"><div><strong>' + esc(b.customer_name || 'Cliente') + '</strong> · ' + esc(b.deals?.service_name || '?') + teamStr(b) +
+  return '<div class="row"><div><strong>' + esc(b.customer_name || 'Cliente') + '</strong> chez <strong>' + esc(b.salons?.name || '?') + '</strong>' +
     ' <span class="ref">(' + esc(b.ref) + ')</span></div>' +
     '<span class="pill ' + (b.state === 'pending_salon' ? 'pending' : ['confirmed','reminded','showed'].includes(b.state) ? 'confirmed' : '') + '">' + esc(b.state === 'pending_salon' ? 'waiting on salon' : b.state) + '</span></div>' +
-    '<div class="muted">' + ((b.party_size || 1) > 1 ? b.party_size + ' pers. · ' : '') + esc(b.salons?.name || '?') + ' · ' + dayWord(b.slot_date) + (b.slot_time ? ' ' + hh(b.slot_time) : '') + ' · ' + (b.price_mad ?? '?') + ' DH · +' + esc(b.customer_phone) + '</div>';
+    '<div class="muted">' + esc(b.deals?.service_name || '?') + teamStr(b) + ((b.party_size || 1) > 1 ? ' · ' + b.party_size + ' pers.' : '') + ' · ' + dayWord(b.slot_date) + (b.slot_time ? ' ' + hh(b.slot_time) : '') + ' · ' + (b.price_mad ?? '?') + ' DH · +' + esc(b.customer_phone) + '</div>';
 }
 const statLine = (label, html) => '<div class="stat"><span class="k">' + label + ':</span>' + html + '</div>';
 
@@ -237,7 +245,7 @@ async function bookingsView(){
       else if(pingOf(b)?.wa_error) cases.push({ b, type:'ping_failed', urgent: true });
       else cases.push({ b, type:'pending', urgent: ageMin(b) > 15 });
     }
-    else if(liveConf && slotPassed(b)) cases.push({ b, type:'attest', urgent: true });   // « did she come? » is work
+    else if(liveConf && slotPassed(b)) cases.push({ b, type:'attest', urgent: (b.slot_date || '') < TODAY() });   // routine same-day; urgent once it rolls over
     else if(liveConf) upcoming.push(b);
     else finished.push(b);
   }
@@ -276,26 +284,30 @@ async function bookingsView(){
       act = proposeOpen[b.id] ? proposeEditor(b) : relayButtons(b);
     } else if(type === 'salon_refused'){
       why = 'The salon <b>refused</b> this booking (two-tap confirmed). The client has been told and offered another day. Anything off about this refusal?';
-      act = '<div class="row" style="justify-content:flex-start;margin-top:8px"><button class="act ghost" data-a="resolve" data-id="' + b.id + '">Seen, OK ✓</button></div>';
+      act = '<div class="btns"><button class="b mid" data-a="resolve" data-id="' + b.id + '">Seen, OK ✓</button></div>';
     } else if(type === 'no_show_claim'){
       why = 'The salon says the client <b>didn\'t come</b> — that cancels the fee, so it needs your eyes. Their reason should be in the conversation below.';
-      act = '<div class="row" style="justify-content:flex-start;margin-top:8px">' +
-        '<button class="act ghost" data-a="noshow_open" data-id="' + b.id + '">Confirm no-show</button>' +
-        '<button class="act ghost" data-a="showed" data-id="' + b.id + '">She did come</button></div>' +
-        (noShowOpen[b.id] ? '<div class="row" style="justify-content:flex-start;margin-top:6px"><input data-nsr="' + b.id + '" placeholder="reason (optional)" style="max-width:260px;margin:0"><button class="act" data-a="noshow_confirm" data-id="' + b.id + '">Save no-show</button></div>' : '');
+      act = '<div class="btns">' +
+        '<button class="b no" data-a="noshow_open" data-id="' + b.id + '"><span class="ov">agree</span><span>Confirm no-show ✕</span></button>' +
+        '<button class="b yes" data-a="showed" data-id="' + b.id + '"><span class="ov">overrule</span><span>She did come ✓</span></button></div>' +
+        (noShowOpen[b.id] ? '<div class="btns"><input data-nsr="' + b.id + '" placeholder="reason (optional)" style="max-width:260px;margin:0"><button class="b no" data-a="noshow_confirm" data-id="' + b.id + '">Save no-show</button></div>' : '');
     } else if(type === 'checkin_conflict'){
       why = 'Conflict: the salon marked <b>« came »</b> but the <b>client says she didn\'t go</b>. Check the conversation, maybe call.';
-      act = '<div class="row" style="justify-content:flex-start;margin-top:8px">' +
-        '<button class="act ghost" data-a="resolve" data-id="' + b.id + '">Keep « came »</button>' +
-        '<button class="act ghost" data-a="noshow_confirm" data-id="' + b.id + '">Switch to no-show</button></div>';
+      act = '<div class="btns">' +
+        '<button class="b yes" data-a="resolve" data-id="' + b.id + '"><span class="ov">keep</span><span>« Came » stands ✓</span></button>' +
+        '<button class="b no" data-a="noshow_confirm" data-id="' + b.id + '"><span class="ov">switch</span><span>No-show ✕</span></button></div>';
     } else if(type === 'attest'){
-      why = 'The ' + (b.slot_time ? hh(b.slot_time) + ' ' : '') + 'slot has passed — <b>did she come?</b> « She came » is the fee event.' +
-        (b.client_checkin === 'not_yet' ? ' (Client said « pas encore » at check-in.)' : '');
-      act = '<div class="row" style="justify-content:flex-start;margin-top:8px">' +
-        '<button class="act" data-a="showed" data-id="' + b.id + '">She came ✓</button>' +
-        '<button class="act ghost" data-a="noshow_open" data-id="' + b.id + '">No-show…</button>' +
+      const tail = (b.checkin_sent_at && !b.client_checkin)
+        ? 'I\'ve already asked her on WhatsApp (« vous avez été servie ? », sent ' + hhmmT(b.checkin_sent_at) + ') — her tap settles this on its own. Answer here only if you already know:'
+        : b.client_checkin === 'not_yet'
+        ? 'At check-in she said « pas encore » — give it a moment, or answer if you know:'
+        : 'I couldn\'t ask her on WhatsApp (no open session) — settle it with the salon, or answer if you know:';
+      why = 'The ' + (b.slot_time ? hh(b.slot_time) + ' ' : '') + 'slot has passed — <b>did she come?</b> (« she came » = the fee event). ' + tail;
+      act = '<div class="btns">' +
+        '<button class="b yes" data-a="showed" data-id="' + b.id + '"><span class="ov">answer</span><span>She came ✓</span></button>' +
+        '<button class="b no" data-a="noshow_open" data-id="' + b.id + '"><span class="ov">answer</span><span>No-show ✕</span></button>' +
         '<button class="link" data-a="cancel_confirmed" data-id="' + b.id + '">it never happened — salon cancelled?</button></div>' +
-        (noShowOpen[b.id] ? '<div class="row" style="justify-content:flex-start;margin-top:6px"><input data-nsr="' + b.id + '" placeholder="reason (optional)" style="max-width:260px;margin:0"><button class="act" data-a="noshow_confirm" data-id="' + b.id + '">Save no-show</button></div>' : '');
+        (noShowOpen[b.id] ? '<div class="btns"><input data-nsr="' + b.id + '" placeholder="reason (optional)" style="max-width:260px;margin:0"><button class="b no" data-a="noshow_confirm" data-id="' + b.id + '">Save no-show</button></div>' : '');
     } else if(type === 'no_ping'){
       why = '☎️ No salon WhatsApp on file — the machine <b>could not ping them</b>. Ask the salon yourself and press their answer:';
       act = proposeOpen[b.id] ? proposeEditor(b) : relayButtons(b);
@@ -313,7 +325,7 @@ async function bookingsView(){
       act = proposeOpen[b.id] ? proposeEditor(b) : relayButtons(b);
     } else {
       why = 'Flagged for review.';
-      act = '<div class="row" style="justify-content:flex-start;margin-top:8px"><button class="act ghost" data-a="resolve" data-id="' + b.id + '">Seen, OK ✓</button></div>';
+      act = '<div class="btns"><button class="b mid" data-a="resolve" data-id="' + b.id + '">Seen, OK ✓</button></div>';
     }
     html += '<div class="card' + (urgent ? (hot ? ' case hot' : ' case') : '') + '">' + bookingHead(b) +
       statLine('Status', why) + act + timeline(b, tl(b)) + '</div>';
