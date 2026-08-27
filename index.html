@@ -141,9 +141,12 @@ async function bookingsView(){
       ? '<div style="width:100%">' + (slotPassed(b) ? '<div style="color:#C0392B;font-weight:700;font-size:12.5px;margin-bottom:6px">⚠ The requested slot time has already passed — cancel or agree a new time with the client first.</div>' : '') +
         '<div class="muted" style="margin-bottom:6px">Check with the salon, then confirm — the client gets the confirmation on WhatsApp.</div>' +
         '<div class="row" style="justify-content:flex-start"><input type="time" data-time="' + b.id + '" style="width:120px;margin:0">' +
+        '<input type="number" min="1" max="6" value="' + (b.party_size || 1) + '" data-party="' + b.id + '" title="people" style="width:64px;margin:0">' +
         '<button class="act" data-a="confirm" data-id="' + b.id + '">Confirm booking</button>' +
+        '<button class="act ghost" data-a="propose" data-id="' + b.id + '">Propose change → client</button>' +
         '<button class="act ghost" data-a="cancel" data-id="' + b.id + '">Salon refuses</button>' +
-        '<button class="act ghost" data-a="cancel_client" data-id="' + b.id + '" data-ref="' + esc(b.ref) + '">Client cancels</button></div></div>'
+        '<button class="act ghost" data-a="cancel_client" data-id="' + b.id + '" data-ref="' + esc(b.ref) + '">Client cancels</button></div>' +
+        '<div class="muted" style="margin-top:6px">Adjust time and/or people first, then Propose — the client gets « Ça vous va ? Répondez OUI » and keeps the choice. On her OUI, hit Confirm.</div></div>'
       : b.state === 'confirmed' || b.state === 'reminded'
       ? '<div style="width:100%"><div class="muted" style="margin-bottom:6px">After the visit — did she come? (this triggers the salon fee)</div>' +
         '<div class="row" style="justify-content:flex-start"><button class="act" data-a="showed" data-id="' + b.id + '">She came</button>' +
@@ -164,6 +167,11 @@ async function bookingsView(){
     if(a === 'confirm'){ const t = app.querySelector('[data-time="' + id + '"]')?.value || undefined; await ops({ action:'confirm_booking', booking_id:id, slot_time:t }); }
     else if(a === 'cancel'){ await ops({ action:'cancel_booking', booking_id:id }); }
     else if(a === 'cancel_client'){ await ops({ action:'cancel_booking', booking_id:id, message: "C'est annulé ✔ (" + el.dataset.ref + ") — à très bientôt 🌸" }); }
+    else if(a === 'propose'){
+      const t = app.querySelector('[data-time="' + id + '"]')?.value || undefined;
+      const n = app.querySelector('[data-party="' + id + '"]')?.value || undefined;
+      await ops({ action:'propose_alternative', booking_id:id, slot_time:t, party_size:n ? +n : undefined });
+    }
     else { const { error } = await sb.from('bookings').update({ state:a, updated_at:new Date().toISOString() }).eq('id', id); if(error) toast(error.message); }
     refresh();
   });
