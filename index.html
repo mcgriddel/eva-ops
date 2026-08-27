@@ -53,8 +53,7 @@
   .sect .link { margin-left:auto; }
   .zen { text-align:center; color:var(--grey); padding:18px 0 6px; font-size:14px; }
   .btns { display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; align-items:center; }
-  button.b { display:inline-flex; flex-direction:column; align-items:center; justify-content:center; gap:0; border-radius:9px; padding:7px 16px; font-weight:650; font-size:13.5px; line-height:1.25; cursor:pointer; min-height:42px; background:#fff; border:1.5px solid var(--line); color:var(--ink); font-family:inherit; transition:border-color .15s, background .15s, opacity .15s; }
-  button.b .ov { font-size:8.5px; font-weight:700; letter-spacing:.09em; text-transform:uppercase; opacity:.65; }
+  button.b { display:inline-flex; align-items:center; justify-content:center; border-radius:9px; padding:9px 16px; font-weight:650; font-size:13.5px; cursor:pointer; min-height:40px; background:#fff; border:1.5px solid var(--line); color:var(--ink); font-family:inherit; transition:border-color .15s, background .15s, opacity .15s; }
   button.b.yes { background:var(--ok); border-color:var(--ok); color:#fff; }
   button.b.yes:hover { opacity:.88; }
   button.b.no { border-color:#DDB9B1; color:var(--bad); background:#fff; }
@@ -198,9 +197,9 @@ function pingStatus(ping){
 }
 const relayButtons = b =>
   '<div class="btns">' +
-    '<button class="b yes" data-a="confirm" data-id="' + b.id + '"><span class="ov">salon says</span><span>Yes&nbsp;·&nbsp;confirm ✓</span></button>' +
-    '<button class="b mid" data-a="propose_open" data-id="' + b.id + '"><span class="ov">salon says</span><span>Yes, but…</span></button>' +
-    '<button class="b no" data-a="cancel" data-id="' + b.id + '"><span class="ov">salon says</span><span>No&nbsp;·&nbsp;refuse ✕</span></button>' +
+    '<button class="b yes" data-a="confirm" data-id="' + b.id + '">Salon says yes → confirm ✓</button>' +
+    '<button class="b mid" data-a="propose_open" data-id="' + b.id + '">Salon says yes, but…</button>' +
+    '<button class="b no" data-a="cancel" data-id="' + b.id + '">Salon says no → refuse ✕</button>' +
     '<button class="link" data-a="cancel_client" data-id="' + b.id + '" data-ref="' + esc(b.ref) + '">client cancelled? → close it + tell her « C\'est annulé ✔ »</button></div>';
 function proposeEditor(b){
   return '<div style="font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--soft);margin:8px 0 6px">Salon says yes, but… what can it offer?</div>' +
@@ -288,14 +287,14 @@ async function bookingsView(){
     } else if(type === 'no_show_claim'){
       why = 'The salon says the client <b>didn\'t come</b> — that cancels the fee, so it needs your eyes. Their reason should be in the conversation below.';
       act = '<div class="btns">' +
-        '<button class="b no" data-a="noshow_open" data-id="' + b.id + '"><span class="ov">agree</span><span>Confirm no-show ✕</span></button>' +
-        '<button class="b yes" data-a="showed" data-id="' + b.id + '"><span class="ov">overrule</span><span>She did come ✓</span></button></div>' +
+        '<button class="b no" data-a="noshow_open" data-id="' + b.id + '">Agree → confirm no-show ✕</button>' +
+        '<button class="b yes" data-a="showed" data-id="' + b.id + '">Overrule → she did come ✓</button></div>' +
         (noShowOpen[b.id] ? '<div class="btns"><input data-nsr="' + b.id + '" placeholder="reason (optional)" style="max-width:260px;margin:0"><button class="b no" data-a="noshow_confirm" data-id="' + b.id + '">Save no-show</button></div>' : '');
     } else if(type === 'checkin_conflict'){
       why = 'Conflict: the salon marked <b>« came »</b> but the <b>client says she didn\'t go</b>. Check the conversation, maybe call.';
       act = '<div class="btns">' +
-        '<button class="b yes" data-a="resolve" data-id="' + b.id + '"><span class="ov">keep</span><span>« Came » stands ✓</span></button>' +
-        '<button class="b no" data-a="noshow_confirm" data-id="' + b.id + '"><span class="ov">switch</span><span>No-show ✕</span></button></div>';
+        '<button class="b yes" data-a="resolve" data-id="' + b.id + '">Keep « came » — fee stands ✓</button>' +
+        '<button class="b no" data-a="noshow_confirm" data-id="' + b.id + '">Switch to no-show ✕</button></div>';
     } else if(type === 'attest'){
       const tail = (b.checkin_sent_at && !b.client_checkin)
         ? 'I\'ve already asked her on WhatsApp (« vous avez été servie ? », sent ' + hhmmT(b.checkin_sent_at) + ') — her tap settles this on its own. Answer here only if you already know:'
@@ -304,8 +303,8 @@ async function bookingsView(){
         : 'I couldn\'t ask her on WhatsApp (no open session) — settle it with the salon, or answer if you know:';
       why = 'The ' + (b.slot_time ? hh(b.slot_time) + ' ' : '') + 'slot has passed — <b>did she come?</b> (« she came » = the fee event). ' + tail;
       act = '<div class="btns">' +
-        '<button class="b yes" data-a="showed" data-id="' + b.id + '"><span class="ov">answer</span><span>She came ✓</span></button>' +
-        '<button class="b no" data-a="noshow_open" data-id="' + b.id + '"><span class="ov">answer</span><span>No-show ✕</span></button>' +
+        '<button class="b yes" data-a="showed" data-id="' + b.id + '">She came → fee applies ✓</button>' +
+        '<button class="b no" data-a="noshow_open" data-id="' + b.id + '">She didn\'t come → no-show…</button>' +
         '<button class="link" data-a="cancel_confirmed" data-id="' + b.id + '">it never happened — salon cancelled?</button></div>' +
         (noShowOpen[b.id] ? '<div class="btns"><input data-nsr="' + b.id + '" placeholder="reason (optional)" style="max-width:260px;margin:0"><button class="b no" data-a="noshow_confirm" data-id="' + b.id + '">Save no-show</button></div>' : '');
     } else if(type === 'no_ping'){
