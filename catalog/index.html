@@ -290,7 +290,7 @@
     return n[0] + ", " + n[1] + " +" + (n.length - 2);
   }
   function waLink(d) {
-    const msg = `Bonjour ! Je veux réserver « ${d.service} » chez ${d.salon} (${fmtH(d.from)}–${fmtH(d.to)}) — EVA-DEAL:${d.id}`;
+    const msg = `Bonjour ! Je veux réserver « ${d.service} » chez ${d.salon} (${fmtH(d.from)}–${fmtH(d.to)}) · Réf EVA-${d.code}`;
     return `https://wa.me/${WA_NUMBER}?text=${encodeURIComponent(msg)}`;
   }
 
@@ -378,7 +378,7 @@
       if (!r.ok) throw new Error("HTTP " + r.status);
       const rows = await r.json();
       DEALS = rows.map(x => ({
-        id: x.id, service: x.service_name, cat: x.category || "soins",
+        id: x.id, code: x.short_code, service: x.service_name, cat: x.category || "soins",
         old: x.verified_price_mad, neu: x.deal_price_mad,
         days: x.window_days || [], from: toH(x.window_start), to: toH(x.window_end),
         left: x.places_left_today, photo: x.photo_url,
