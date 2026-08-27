@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Eva Console</title>
+<style>
+  :root { --ivory:#F4F2EE; --paper:#ECE9E2; --ink:#141311; --soft:#454239; --grey:#9B978F; --line:#D6D2C8; --ok:#1F7A4D; --warn:#8A5A00; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:var(--ivory); color:var(--ink); font:15px/1.45 -apple-system, 'Segoe UI', Roboto, sans-serif; }
+  header { display:flex; align-items:center; gap:14px; padding:12px 16px; border-bottom:2px solid var(--ink); position:sticky; top:0; background:var(--ivory); z-index:5; }
+  header h1 { font-family:Georgia, serif; font-size:22px; }
+  nav { display:flex; gap:6px; margin-left:auto; flex-wrap:wrap; }
+  nav button { border:1px solid var(--line); background:var(--paper); padding:8px 14px; border-radius:999px; font-size:13px; font-weight:600; cursor:pointer; }
+  nav button.on { background:var(--ink); color:var(--ivory); border-color:var(--ink); }
+  main { max-width:860px; margin:0 auto; padding:16px; }
+  .card { background:#fff; border:1px solid var(--line); border-radius:10px; padding:14px 16px; margin-bottom:10px; }
+  .row { display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; }
+  .muted { color:var(--grey); font-size:12.5px; }
+  .pill { display:inline-block; padding:2px 10px; border-radius:999px; font-size:11.5px; font-weight:700; border:1px solid var(--line); background:var(--paper); }
+  .pill.pending { background:#FFF3D6; border-color:#E8CF96; color:var(--warn); }
+  .pill.confirmed { background:#E0F0E7; border-color:#B5D9C4; color:var(--ok); }
+  .pill.live { background:#E0F0E7; color:var(--ok); }
+  button.act { border:1px solid var(--ink); background:var(--ink); color:var(--ivory); padding:9px 14px; border-radius:8px; font-weight:600; cursor:pointer; font-size:13.5px; min-height:40px; }
+  button.ghost { background:transparent; color:var(--ink); }
+  input, select, textarea { width:100%; padding:10px; border:1px solid var(--line); border-radius:8px; font-size:15px; background:#fff; margin-top:6px; }
+  label { font-size:12px; font-weight:700; color:var(--soft); text-transform:uppercase; letter-spacing:.06em; display:block; margin-top:10px; }
+  form .act { margin-top:14px; }
+  #login { max-width:360px; margin:12vh auto; }
+  .thread { max-height:50vh; overflow-y:auto; display:flex; flex-direction:column; gap:6px; padding:8px 0; }
+  .msg { max-width:80%; padding:8px 12px; border-radius:12px; font-size:14px; }
+  .msg.in { background:#fff; border:1px solid var(--line); align-self:flex-start; }
+  .msg.out { background:var(--ink); color:var(--ivory); align-self:flex-end; }
+  .badge { background:#C0392B; color:#fff; border-radius:999px; font-size:11px; padding:1px 8px; font-weight:700; }
+  h2 { font-size:16px; margin:18px 0 10px; }
+  .toast { position:fixed; bottom:16px; left:50%; transform:translateX(-50%); background:var(--ink); color:var(--ivory); padding:10px 18px; border-radius:999px; font-size:13.5px; opacity:0; transition:opacity .3s; pointer-events:none; z-index:9; }
+</style>
+</head>
+<body>
+<header><h1>eva</h1><span class="muted">console</span>
+  <nav id="nav" style="display:none">
+    <button data-t="inbox">Inbox <span id="inboxBadge"></span></button>
+    <button data-t="bookings">Bookings</button>
+    <button data-t="deals">Deals</button>
+    <button data-t="salons">Salons</button>
+    <button data-t="out" class="ghost">Sign out</button>
+  </nav>
+</header>
+<main id="app"></main>
+<div class="toast" id="toast"></div>
+<script type="module">
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+const sb = createClient('https://iapwfxbfwlnibyucetca.supabase.co', 'sb_publishable_3XDoudJTZYbZNPjajzsccg_pTqf0F-U');
+const FN = 'https://iapwfxbfwlnibyucetca.supabase.co' + '/functions/v1/ops-send';
+const app = document.getElementById('app');
+let tab = 'inbox', session = null, timer = null, openPhone = null;
+
+function esc(s){ return String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function toast(m){ const t = document.getElementById('toast'); t.textContent = m; t.style.opacity = 1; setTimeout(() => t.style.opacity = 0, 2600); }
+async function ops(body){
+  const r = await fetch(FN, { method:'POST', headers:{ 'Content-Type':'application/json', 'apikey':'sb_publishable_3XDoudJTZYbZNPjajzsccg_pTqf0F-U', 'Authorization':'Bearer ' + session.access_token }, body: JSON.stringify(body) });
+  const j = await r.json().catch(() => ({}));
+  if(!r.ok) toast(j.error || ('Error ' + r.status));
+  else if(j.send_error) toast('Saved. WhatsApp send: ' + j.send_error);
+  return j;
+}
+
+function loginView(){
+  document.getElementById('nav').style.display = 'none';
+  app.innerHTML = '<div id="login" class="card"><h2 style="margin-top:0">Sign in</h2>' +
+    '<label>Email</label><input id="em" type="email" autocomplete="username">' +
+    '<label>Password</label><input id="pw" type="password" autocomplete="current-password">' +
+    '<button class="act" id="si">Sign in</button> <button class="act ghost" id="su">Create account</button>' +
+    '<p class="muted" style="margin-top:10px">Access is restricted to Eva team accounts.</p></div>';
+  document.getElementById('si').onclick = async () => {
+    const { error } = await sb.auth.signInWithPassword({ email: em.value.trim(), password: pw.value });
+    if(error) toast(error.message);
+  };
+  document.getElementById('su').onclick = async () => {
+    const { error } = await sb.auth.signUp({ email: em.value.trim(), password: pw.value });
+    toast(error ? error.message : 'Account created — check your email to confirm, then sign in.');
+  };
+}
+
+async function inboxView(){
+  const { data: msgs, error } = await sb.from('wa_messages').select('*').order('created_at', { ascending:false }).limit(300);
+  if(error){ app.innerHTML = '<p class="muted">' + esc(error.message) + '</p>'; return; }
+  const by = {};
+  for(const m of (msgs || [])){ (by[m.customer_phone] = by[m.customer_phone] || []).push(m); }
+  const phones = Object.keys(by);
+  const unread = phones.filter(p => by[p].some(m => m.direction === 'in' && !m.handled)).length;
+  document.getElementById('inboxBadge').innerHTML = unread ? '<span class="badge">' + unread + '</span>' : '';
+  if(openPhone && by[openPhone]){ return threadView(openPhone, by[openPhone]); }
+  openPhone = null;
+  if(!phones.length){ app.innerHTML = '<p class="muted">No WhatsApp conversations yet. They will appear here the moment the Eva number is live.</p>'; return; }
+  app.innerHTML = phones.map(p => {
+    const last = by[p][0]; const needs = by[p].some(m => m.direction === 'in' && !m.handled);
+    return '<div class="card row" style="cursor:pointer" data-p="' + esc(p) + '">' +
+      '<div><strong>+' + esc(p) + '</strong>' + (needs ? ' <span class="badge">needs reply</span>' : '') +
+      '<div class="muted">' + esc((last.body || '').slice(0, 80)) + '</div></div>' +
+      '<span class="muted">' + new Date(last.created_at).toLocaleString() + '</span></div>';
+  }).join('');
+  app.querySelectorAll('[data-p]').forEach(el => el.onclick = () => { openPhone = el.dataset.p; refresh(); });
+}
+
+function threadView(phone, msgs){
+  const items = msgs.slice().reverse();
+  app.innerHTML = '<button class="act ghost" id="back">← All conversations</button>' +
+    '<h2>+' + esc(phone) + '</h2><div class="thread">' +
+    items.map(m => '<div class="msg ' + m.direction + '">' + esc(m.body || '(media)') + '<div class="muted" style="font-size:10.5px">' + new Date(m.created_at).toLocaleTimeString() + '</div></div>').join('') +
+    '</div><label>Reply (customers get this in French — write it as Eva)</label><textarea id="rt" rows="2"></textarea>' +
+    '<button class="act" id="send">Send</button>';
+  document.getElementById('back').onclick = () => { openPhone = null; refresh(); };
+  document.getElementById('send').onclick = async () => {
+    const text = document.getElementById('rt').value.trim(); if(!text) return;
+    await ops({ action:'reply', phone, text }); refresh();
+  };
+}
+
+async function bookingsView(){
+  const { data: bks, error } = await sb.from('bookings')
+    .select('*, deals(service_name), salons(name)').order('created_at', { ascending:false }).limit(100);
+  if(error){ app.innerHTML = '<p class="muted">' + esc(error.message) + '</p>'; return; }
+  if(!bks || !bks.length){ app.innerHTML = '<p class="muted">No bookings yet.</p>'; return; }
+  app.innerHTML = bks.map(b => {
+    const acts = b.state === 'pending_salon' || b.state === 'received'
+      ? '<button class="act" data-a="confirm" data-id="' + b.id + '">Confirm → client</button><button class="act ghost" data-a="cancel" data-id="' + b.id + '">Cancel</button>'
+      : b.state === 'confirmed' || b.state === 'reminded'
+      ? '<button class="act" data-a="showed" data-id="' + b.id + '">Showed ✓</button><button class="act ghost" data-a="no_show" data-id="' + b.id + '">No-show</button>' : '';
+    return '<div class="card"><div class="row"><strong>' + esc(b.ref) + '</strong>' +
+      '<span class="pill ' + (b.state === 'pending_salon' ? 'pending' : b.state === 'confirmed' ? 'confirmed' : '') + '">' + esc(b.state) + '</span></div>' +
+      '<div>' + esc(b.customer_name || 'Client') + ' · +' + esc(b.customer_phone) + '</div>' +
+      '<div class="muted">' + esc(b.deals?.service_name || '?') + ' · ' + esc(b.salons?.name || '?') + ' · ' + esc(b.slot_date || '') + ' ' + esc(b.slot_time || '') + ' · ' + (b.price_mad ?? '?') + ' DH</div>' +
+      '<div class="row" style="margin-top:10px">' + acts + '</div></div>';
+  }).join('');
+  app.querySelectorAll('[data-a]').forEach(el => el.onclick = async () => {
+    const id = el.dataset.id, a = el.dataset.a;
+    if(a === 'confirm'){ const t = prompt('Time to confirm (e.g. 14:30) — leave empty to keep as is') || undefined; await ops({ action:'confirm_booking', booking_id:id, slot_time:t }); }
+    else if(a === 'cancel'){ await ops({ action:'cancel_booking', booking_id:id }); }
+    else { await sb.from('bookings').update({ state:a, updated_at:new Date().toISOString() }).eq('id', id); }
+    refresh();
+  });
+}
+
+async function dealsView(){
+  const [{ data: deals }, { data: salons }] = await Promise.all([
+    sb.from('deals').select('*, salons(name)').order('created_at', { ascending:false }),
+    sb.from('salons').select('id, name').order('name'),
+  ]);
+  const D = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  app.innerHTML = (deals || []).map(d =>
+    '<div class="card"><div class="row"><strong>' + esc(d.service_name) + '</strong>' +
+    '<span class="pill ' + (d.status === 'live' ? 'live' : '') + '">' + esc(d.status) + '</span></div>' +
+    '<div class="muted">' + esc(d.salons?.name || '?') + ' · ' + d.deal_price_mad + ' DH instead of ' + d.verified_price_mad + ' DH · ' +
+    (d.window_days || []).map(i => D[i]).join('/') + ' ' + esc(String(d.window_start).slice(0,5)) + '–' + esc(String(d.window_end).slice(0,5)) + ' · cap ' + d.cap_per_day + '/day</div>' +
+    '<div class="row" style="margin-top:8px"><button class="act ghost" data-tg="' + d.id + '" data-st="' + (d.status === 'live' ? 'paused' : 'live') + '">' + (d.status === 'live' ? 'Pause' : 'Go live') + '</button>' +
+    '<span class="muted">card link: wa message must contain EVA-DEAL:' + d.id + '</span></div></div>'
+  ).join('') +
+  '<h2>New deal</h2><form class="card" id="nd">' +
+  '<label>Salon</label><select id="d_salon">' + (salons || []).map(s => '<option value="' + s.id + '">' + esc(s.name) + '</option>').join('') + '</select>' +
+  '<label>Service name (as shown to clients)</label><input id="d_service" required>' +
+  '<label>Board price (DH)</label><input id="d_vp" type="number" required>' +
+  '<label>Eva price (DH)</label><input id="d_dp" type="number" required>' +
+  '<label>Days (tick)</label><div class="row" style="justify-content:flex-start">' + D.map((d, i) => '<label style="display:inline;margin:0 8px 0 0;text-transform:none"><input type="checkbox" style="width:auto" class="dday" value="' + i + '"> ' + d + '</label>').join('') + '</div>' +
+  '<div class="row"><div style="flex:1"><label>From</label><input id="d_ws" type="time" value="14:00"></div><div style="flex:1"><label>To</label><input id="d_we" type="time" value="17:00"></div><div style="flex:1"><label>Cap/day</label><input id="d_cap" type="number" value="2"></div></div>' +
+  '<button class="act">Create deal (draft)</button></form>';
+  app.querySelectorAll('[data-tg]').forEach(el => el.onclick = async () => {
+    await sb.from('deals').update({ status: el.dataset.st }).eq('id', el.dataset.tg); refresh();
+  });
+  document.getElementById('nd').onsubmit = async (e) => {
+    e.preventDefault();
+    const days = [...document.querySelectorAll('.dday:checked')].map(c => +c.value);
+    const { error } = await sb.from('deals').insert({
+      salon_id: d_salon.value, service_name: d_service.value, verified_price_mad: +d_vp.value,
+      deal_price_mad: +d_dp.value, window_days: days, window_start: d_ws.value, window_end: d_we.value,
+      cap_per_day: +d_cap.value });
+    toast(error ? error.message : 'Deal created (draft)'); if(!error) refresh();
+  };
+}
+
+async function salonsView(){
+  const { data: salons } = await sb.from('salons').select('*').order('created_at', { ascending:false });
+  app.innerHTML = (salons || []).map(s =>
+    '<div class="card row"><div><strong>' + esc(s.name) + '</strong><div class="muted">' + esc(s.quartier || '') + ' · ' + esc(s.owner_name || '') + ' · ' + esc(s.owner_whatsapp || '') + '</div></div>' +
+    '<span class="pill">' + esc(s.status) + '</span></div>').join('') +
+  '<h2>New salon</h2><form class="card" id="ns">' +
+  '<label>Name</label><input id="s_name" required>' +
+  '<label>Quartier</label><input id="s_q">' +
+  '<label>Owner name</label><input id="s_owner">' +
+  '<label>Owner WhatsApp (e.g. 2126…)</label><input id="s_wa">' +
+  '<label>Instagram</label><input id="s_ig">' +
+  '<label>Status</label><select id="s_st"><option>prospect</option><option>warm</option><option>onboarding</option><option>live</option></select>' +
+  '<label>Notes (dead windows, discount picks…)</label><textarea id="s_notes" rows="2"></textarea>' +
+  '<button class="act">Add salon</button></form>';
+  document.getElementById('ns').onsubmit = async (e) => {
+    e.preventDefault();
+    const { error } = await sb.from('salons').insert({ name:s_name.value, quartier:s_q.value, owner_name:s_owner.value, owner_whatsapp:s_wa.value, instagram:s_ig.value, status:s_st.value, notes:s_notes.value });
+    toast(error ? error.message : 'Salon added'); if(!error) refresh();
+  };
+}
+
+function refresh(){
+  if(!session) return loginView();
+  document.getElementById('nav').style.display = 'flex';
+  document.querySelectorAll('#nav [data-t]').forEach(b => b.classList.toggle('on', b.dataset.t === tab));
+  if(tab === 'inbox') inboxView();
+  else if(tab === 'bookings') bookingsView();
+  else if(tab === 'deals') dealsView();
+  else if(tab === 'salons') salonsView();
+}
+document.getElementById('nav').onclick = async (e) => {
+  const t = e.target.closest('[data-t]')?.dataset.t; if(!t) return;
+  if(t === 'out'){ await sb.auth.signOut(); return; }
+  tab = t; openPhone = null; refresh();
+};
+sb.auth.onAuthStateChange((_e, s) => { session = s; refresh(); });
+const { data: { session: s0 } } = await sb.auth.getSession(); session = s0; refresh();
+clearInterval(timer); timer = setInterval(() => { if(session && (tab === 'inbox' || tab === 'bookings') && !document.getElementById('rt')) refresh(); }, 10000);
+</script>
+</body>
+</html>
