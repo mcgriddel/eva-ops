@@ -333,7 +333,7 @@
     return n[0] + ", " + n[1] + " +" + (n.length - 2);
   }
   // ---------- booking sheet (day + slot + practitioner + prénom → pre-filled WhatsApp) ----------
-  let sheetDeal = null, selDayOffset = null, selTime = null, selPract = null, selParty = 1;
+  let sheetDeal = null, selDayOffset = null, selTime = null, selPracts = [], selParty = 1;
 
   const isoOf = dt => dt.getFullYear() + "-" + String(dt.getMonth() + 1).padStart(2, "0") + "-" + String(dt.getDate()).padStart(2, "0");
   const busyAt = (d, dISO, t) => (BUSY[d.id] || []).filter(b => b.d === dISO && b.t === t);
@@ -344,7 +344,7 @@
   function slotTaken(d, dISO, t) {
     const at = busyAt(d, dISO, t);
     if (at.length >= Math.max(1, d.staff.length)) return true;
-    if (selPract && at.some(b => b.p === selPract)) return true;
+    if (selPracts.length && at.some(b => selPracts.includes(b.p))) return true;
     return false;
   }
 
@@ -373,7 +373,7 @@
   }
 
   function openSheet(d) {
-    sheetDeal = d; selTime = null; selPract = null; selParty = 1;
+    sheetDeal = d; selTime = null; selPracts = []; selParty = 1;
     selDayOffset = dayOptions(d)[0]?.o ?? null;
     document.getElementById("sheet-back").style.display = "block";
     document.getElementById("sheet").style.display = "block";
@@ -415,11 +415,11 @@
         return '<button class="opt" data-slot="' + t + '" aria-pressed="' + (t === selTime) + '"' + (gone ? ' disabled' : '') + '>' + fmtH(t) + '</button>';
       }).join('') : '<span class="sub2">Plus de créneau ce jour-là — choisissez un autre jour.</span>') +
       '</div>' +
-      (practs.length ? '<div class="lbl">Avec qui ?' + (selParty > 1 ? ' <span style="text-transform:none;letter-spacing:0">— votre préférence, le salon complète l\'équipe</span>' : '') + '</div><div class="optrow">' +
-        '<button class="opt" data-pract="" aria-pressed="' + (selPract === null) + '">Peu importe</button>' +
+      (practs.length ? '<div class="lbl">Avec qui ?' + (selParty > 1 ? ' <span style="text-transform:none;letter-spacing:0">— choisissez jusqu\'à ' + selParty + '</span>' : '') + '</div><div class="optrow">' +
+        '<button class="opt" data-pract="" aria-pressed="' + (selPracts.length === 0) + '">Peu importe</button>' +
         practs.map(p => {
           const busy = practBusy(p);
-          return '<button class="opt" data-pract="' + p.id + '" aria-pressed="' + (p.id === selPract) + '"' + (busy ? ' disabled' : '') + '>' + practFace(p) + esc(p.first_name) + (busy ? ' · prise' : '') + '</button>';
+          return '<button class="opt" data-pract="' + p.id + '" aria-pressed="' + selPracts.includes(p.id) + '"' + (busy ? ' disabled' : '') + '>' + practFace(p) + esc(p.first_name) + (busy ? ' · prise' : '') + '</button>';
         }).join('') + '</div>' : '') +
       (d.maxParty > 1 ? '<div class="lbl">Pour combien de personnes ?</div><div class="optrow">' +
       Array.from({ length: Math.min(3, d.maxParty) }, (_, i) => i + 1).map(n => {
@@ -432,19 +432,28 @@
     document.getElementById("bk-close").onclick = closeSheet;
     document.querySelectorAll("#sheet [data-day]").forEach(b => b.onclick = () => { selDayOffset = +b.dataset.day; selTime = null; renderSheet(); });
     document.querySelectorAll("#sheet [data-slot]").forEach(b => b.onclick = () => { selTime = +b.dataset.slot; renderSheet(); });
-    document.querySelectorAll("#sheet [data-pract]").forEach(b => b.onclick = () => { selPract = b.dataset.pract || null; renderSheet(); });
-    document.querySelectorAll("#sheet [data-party]").forEach(b => b.onclick = () => { selParty = +b.dataset.party; renderSheet(); });
+    document.querySelectorAll("#sheet [data-pract]").forEach(b => b.onclick = () => {
+      const id = b.dataset.pract;
+      if (!id) selPracts = [];
+      else if (selPracts.includes(id)) selPracts = selPracts.filter(x => x !== id);
+      else { selPracts.push(id); while (selPracts.length > selParty) selPracts.shift(); }
+      renderSheet();
+    });
+    document.querySelectorAll("#sheet [data-party]").forEach(b => b.onclick = () => { selParty = +b.dataset.party; while (selPracts.length > selParty) selPracts.shift(); renderSheet(); });
     document.getElementById("bk-go").onclick = () => {
       if (!opt || selTime === null) return;
       const nm = document.getElementById("bk-name").value.trim();
-      const pr = practs.find(p => p.id === selPract);
+      const chosen = selPracts.map(id => practs.find(p => p.id === id)).filter(Boolean);
+      const avecNames = chosen.length === 0 ? null : chosen.length <= 2
+        ? chosen.map(p => p.first_name).join(" & ")
+        : chosen.map(p => p.first_name).join(", ");
       const dd = String(opt.dt.getDate()).padStart(2, "0"), mm = String(opt.dt.getMonth() + 1).padStart(2, "0");
       const human = opt.o === 0 ? "aujourd'hui" : opt.o === 1 ? "demain" :
         opt.dt.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" });
       const lines = [
         `Bonjour ! Je veux réserver « ${d.service} » chez ${d.salon} 🌸`,
         `${human.charAt(0).toUpperCase() + human.slice(1)} à ${fmtH(selTime)}`,
-        pr ? `Avec : ${pr.first_name}` : null,
+        avecNames ? `Avec : ${avecNames}` : null,
         selParty > 1 ? `Personnes : ${selParty}` : null,
         nm ? `Prénom : ${nm}` : null,
         `Réf : EVA-${d.code} · ${dd}/${mm} · ${fmtH(selTime)}`,

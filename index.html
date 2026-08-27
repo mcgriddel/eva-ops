@@ -155,7 +155,7 @@ async function bookingsView(){
       '<span style="display:flex;gap:6px">' + waitBadge +
       '<span class="pill ' + (b.state === 'pending_salon' ? 'pending' : b.state === 'confirmed' ? 'confirmed' : '') + '">' + esc(b.state) + '</span></span></div>' +
       '<div>' + esc(b.customer_name || 'Client') + ' · +' + esc(b.customer_phone) + '</div>' +
-      '<div class="muted">' + esc(b.deals?.service_name || '?') + (b.practitioners?.first_name ? ' avec ' + esc(b.practitioners.first_name) : '') + ((b.party_size || 1) > 1 ? ' · ' + b.party_size + ' pers.' : '') + ' · ' + esc(b.salons?.name || '?') + ' · ' + esc(b.slot_date || '') + ' ' + esc((b.slot_time || '').slice(0,5)) + ' · ' + (b.price_mad ?? '?') + ' DH</div>' +
+      '<div class="muted">' + esc(b.deals?.service_name || '?') + ((b.notes || '').startsWith('Avec : ') ? ' ' + esc(b.notes.replace('Avec : ', 'avec ')) : (b.practitioners?.first_name ? ' avec ' + esc(b.practitioners.first_name) : '')) + ((b.party_size || 1) > 1 ? ' · ' + b.party_size + ' pers.' : '') + ' · ' + esc(b.salons?.name || '?') + ' · ' + esc(b.slot_date || '') + ' ' + esc((b.slot_time || '').slice(0,5)) + ' · ' + (b.price_mad ?? '?') + ' DH</div>' +
       '<div class="row" style="margin-top:10px">' + acts + '</div></div>';
   }).join('');
   app.querySelectorAll('[data-a]').forEach(el => el.onclick = async () => {
