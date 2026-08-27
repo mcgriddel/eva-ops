@@ -1,0 +1,410 @@
+<!-- Eva catalog v1 — reads LIVE deals from Supabase (view: catalog_deals, anon read).
+     Design ported from catalog-v0.html (chic dark monochrome, Mac 2026-08-20).
+     Deployed copy: system/console/catalog/index.html → https://mcgriddel.github.io/eva-ops/catalog/
+     Spec: HQ/03 Product/Catalog Page Spec.md · Booking msg embeds EVA-DEAL:<uuid> (webhook contract). -->
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Eva — Créneaux beauté</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:ital,opsz,wght@0,6..96,400..700;1,6..96,400..700&family=Albert+Sans:wght@400;500;600;700&display=swap">
+<style>
+  /* single-theme commit: chic dark monochrome (Mac, 2026-08-20) */
+  :root {
+    --paper: #131211;
+    --card: #1C1B19;
+    --ink: #F4F2EE;
+    --muted: #9B978F;
+    --line: #33312D;
+    --tile: #EDEAE4;
+    --tile-ground: #232220;
+    --btn-ink: #141311;
+    --green: #1FA968;
+    --shadow: 0 1px 2px rgba(0,0,0,.35), 0 8px 22px rgba(0,0,0,.3);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: "Albert Sans", "Helvetica Neue", Arial, sans-serif;
+    font-size: 15.5px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 480px; margin: 0 auto; padding: 0 16px 48px; }
+  .serif { font-family: "Bodoni Moda", "Didot", Georgia, serif; }
+
+  /* ---------- header ---------- */
+  header {
+    position: sticky; top: 0; z-index: 20;
+    background: color-mix(in srgb, var(--paper) 90%, transparent);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--ink);
+  }
+  .head-in {
+    max-width: 480px; margin: 0 auto; padding: 14px 16px 10px;
+    display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
+  }
+  .wordmark {
+    font-family: "Bodoni Moda", "Didot", Georgia, serif;
+    font-style: italic; font-weight: 500; font-size: 42px; letter-spacing: .02em;
+    line-height: 1;
+  }
+  .brand { display: inline-flex; flex-direction: column; }
+  .tagline { font-size: 8.5px; color: var(--muted); margin-top: 4px; letter-spacing: .18em; text-transform: uppercase; text-align: center; }
+  .clock {
+    text-align: right; font-variant-numeric: tabular-nums;
+    font-size: 12px; color: var(--muted); line-height: 1.35; white-space: nowrap;
+  }
+  .clock b { display: block; font-size: 15px; color: var(--ink); font-weight: 600; }
+
+  /* ---------- chips ---------- */
+  .chips {
+    max-width: 480px; margin: 0 auto; padding: 8px 16px 12px;
+    display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none;
+  }
+  .chips::-webkit-scrollbar { display: none; }
+  .chip {
+    border: 1px solid var(--ink); background: transparent; color: var(--ink);
+    font: inherit; font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase;
+    padding: 6px 14px; border-radius: 999px; white-space: nowrap; cursor: pointer;
+  }
+  .chip[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+  .chip:focus-visible, .wa-btn:focus-visible, a:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+
+  /* ---------- sections ---------- */
+  .section-head { display: flex; align-items: baseline; gap: 10px; margin: 30px 0 14px; }
+  .section-head h2 {
+    font-family: "Bodoni Moda", "Didot", Georgia, serif; font-weight: 550; font-size: 24px;
+    letter-spacing: .01em; text-wrap: balance;
+  }
+  .section-head .sub { font-size: 11px; color: var(--muted); letter-spacing: .12em; text-transform: uppercase; }
+  .live-dot {
+    width: 8px; height: 8px; border-radius: 50%; background: var(--ink);
+    display: inline-block; margin-right: 8px; position: relative; top: -2px;
+    animation: pulse 2s ease-in-out infinite;
+  }
+  @keyframes pulse { 0%,100% { opacity: 1 } 50% { opacity: .25 } }
+  @media (prefers-reduced-motion: reduce) { .live-dot { animation: none; } }
+
+  /* ---------- cards ---------- */
+  .stack { display: flex; flex-direction: column; gap: 16px; }
+  .deal {
+    background: var(--card); border: 1px solid var(--line); border-radius: 4px;
+    box-shadow: var(--shadow); overflow: hidden; display: flex; flex-direction: column;
+  }
+  .deal-visual { position: relative; height: 170px; overflow: hidden; border-bottom: 1px solid var(--line); }
+  .deal-visual svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .badge-pct {
+    position: absolute; top: 10px; left: 10px;
+    background: var(--green); color: #FFFFFF;
+    font-family: "Bodoni Moda", Georgia, serif; font-weight: 600; font-size: 14px;
+    padding: 4px 10px; border-radius: 2px;
+  }
+  .deal-visual img {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    object-fit: cover; filter: contrast(1.03) brightness(.94) saturate(.92);
+  }
+  .badge-window {
+    position: absolute; bottom: 10px; left: 10px;
+    background: var(--card); color: var(--ink); border: 1px solid var(--ink);
+    font-size: 11.5px; font-weight: 600; padding: 3px 9px; border-radius: 2px;
+    font-variant-numeric: tabular-nums; letter-spacing: .04em;
+  }
+  .badge-left {
+    position: absolute; bottom: 10px; right: 10px;
+    background: var(--ink); color: var(--paper);
+    font-size: 10.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
+    padding: 4px 9px; border-radius: 2px;
+  }
+  .deal-body { padding: 14px 15px 15px; display: flex; flex-direction: column; gap: 10px; }
+  .deal-top { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
+  .service { font-weight: 600; font-size: 16.5px; letter-spacing: -.01em; }
+  .staff-row { display: flex; align-items: flex-start; gap: 9px; margin-top: 10px; }
+  .staff-row .pile { display: flex; }
+  .staff-row .face {
+    width: 44px; height: 44px; border-radius: 50%; object-fit: cover;
+    border: 2px solid var(--card); background: var(--tile-ground);
+    display: grid; place-items: center;
+    font-family: "Bodoni Moda", Georgia, serif; font-size: 18px; font-weight: 600; color: var(--muted);
+  }
+  .staff-row .pile .face + .face { margin-left: -12px; }
+  .staff-row > span { font-size: 11px; color: var(--muted); line-height: 1.35; padding-top: 2px; }
+  .staff-row b { display: block; font-size: 13.5px; color: var(--ink); font-weight: 600; }
+  .salon-line { font-size: 12.5px; color: var(--muted); margin-top: 3px; }
+  .salon-line .stars { color: var(--ink); font-weight: 600; }
+  .prices { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .price-old { font-size: 12.5px; color: var(--muted); text-decoration: line-through; }
+  .price-new {
+    font-family: "Bodoni Moda", Georgia, serif;
+    font-size: 24px; font-weight: 600; line-height: 1.05;
+  }
+  .price-new small { font-size: 12px; font-weight: 600; font-family: "Albert Sans", sans-serif; }
+  .deal-foot { display: flex; align-items: center; gap: 10px; }
+  .countdown { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; flex: 1; letter-spacing: .02em; }
+  .countdown.live { color: var(--ink); font-weight: 700; }
+  .wa-btn {
+    display: inline-flex; align-items: center; gap: 7px;
+    background: var(--ink); color: var(--btn-ink); text-decoration: none;
+    font-weight: 700; font-size: 12.5px; letter-spacing: .05em; text-transform: uppercase;
+    padding: 10px 15px; border-radius: 2px;
+  }
+  .wa-btn svg { width: 15px; height: 15px; fill: currentColor; }
+
+  /* ---------- how it works ---------- */
+  .how {
+    margin-top: 44px; background: var(--card); border: 1px solid var(--ink);
+    border-radius: 4px; padding: 22px 18px;
+  }
+  .how h2 { font-family: "Bodoni Moda", Georgia, serif; font-weight: 550; font-size: 22px; margin-bottom: 16px; }
+  .steps { display: flex; flex-direction: column; gap: 14px; }
+  .step { display: flex; gap: 13px; align-items: flex-start; }
+  .step-num {
+    flex: none; width: 32px; height: 32px; border-radius: 50%;
+    border: 1px solid var(--ink); color: var(--ink);
+    display: grid; place-items: center;
+    font-family: "Bodoni Moda", Georgia, serif; font-size: 15px; font-weight: 600;
+  }
+  .step b { display: block; font-size: 14.5px; }
+  .step span { font-size: 13px; color: var(--muted); }
+  .no-prepay {
+    margin-top: 18px; padding: 11px 13px; border-radius: 2px;
+    border: 1px solid var(--line);
+    color: var(--ink); font-weight: 600; font-size: 12px; text-align: center;
+    letter-spacing: .1em; text-transform: uppercase;
+  }
+
+  /* ---------- salon CTA + footer ---------- */
+  .salon-cta {
+    margin-top: 28px; text-align: center; padding: 24px 16px;
+    border: 1px dashed var(--muted); border-radius: 4px;
+  }
+  .salon-cta p { font-size: 14px; color: var(--muted); margin-bottom: 10px; }
+  .salon-cta p b { color: var(--ink); font-family: "Bodoni Moda", Georgia, serif; font-size: 17px; font-weight: 600; }
+  .salon-cta a { color: var(--ink); font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
+  .demo-note { margin-top: 30px; text-align: center; font-size: 11.5px; color: var(--muted); }
+  .empty { color: var(--muted); font-size: 14px; padding: 8px 2px 2px; }
+</style>
+
+<header>
+  <div class="head-in">
+    <div class="brand">
+      <div class="wordmark">eva</div>
+      <div class="tagline">Créneaux beauté</div>
+    </div>
+    <div class="clock"><b id="clock-time">–:–</b><span id="clock-day">…</span></div>
+  </div>
+  <div class="chips" id="chips" role="group" aria-label="Filtrer par catégorie"></div>
+</header>
+
+<div class="wrap">
+  <div class="section-head" style="margin-top:22px">
+    <h2><span class="live-dot" aria-hidden="true"></span>En ce moment</h2>
+    <span class="sub">réservable tout de suite</span>
+  </div>
+  <div class="stack" id="now"></div>
+
+  <div class="section-head"><h2>Plus tard aujourd'hui</h2></div>
+  <div class="stack" id="later"></div>
+
+  <div class="section-head"><h2>Demain</h2><span class="sub">mêmes créneaux</span></div>
+  <div class="stack" id="tomorrow"></div>
+
+  <div id="week-wrap" style="display:none">
+    <div class="section-head"><h2>Cette semaine</h2></div>
+    <div class="stack" id="week"></div>
+  </div>
+
+  <section class="how">
+    <h2>Comment ça marche</h2>
+    <div class="steps">
+      <div class="step"><div class="step-num">1</div><div><b>Réservez sur WhatsApp</b><span>Un tap sur le deal, votre message est déjà prêt.</span></div></div>
+      <div class="step"><div class="step-num">2</div><div><b>Venez au salon</b><span>Donnez votre prénom — vous êtes attendue.</span></div></div>
+      <div class="step"><div class="step-num">3</div><div><b>Payez sur place, prix affiché</b><span>Le prix du deal, directement au salon. Comme d'habitude.</span></div></div>
+    </div>
+    <div class="no-prepay">Aucun prépaiement · aucun frais · aucune surprise</div>
+  </section>
+
+  <div class="salon-cta">
+    <p><b>Vous avez un salon&nbsp;?</b><br>Remplissez vos heures creuses — gratuit pendant le lancement.</p>
+    <a id="salon-wa" href="#">Écrivez-nous sur WhatsApp</a>
+  </div>
+
+  <p class="demo-note" id="demo-note">Version démo — salons et avis fictifs, à titre d'illustration.<br>Les vraies photos et adresses arrivent avec les salons partenaires.</p>
+</div>
+
+<script>
+  const WA_NUMBER = "212600000000"; // placeholder — replaced by Eva's real number at go-live
+  const SB_URL = "https://iapwfxbfwlnibyucetca.supabase.co";
+  const SB_KEY = "sb_publishable_3XDoudJTZYbZNPjajzsccg_pTqf0F-U";
+
+  const CATS = [
+    { key:"all",      label:"Tout" },
+    { key:"coiffure", label:"Coiffure" },
+    { key:"ongles",   label:"Ongles" },
+    { key:"hammam",   label:"Hammam" },
+    { key:"soins",    label:"Soins" },
+    { key:"massage",  label:"Massage" },
+  ];
+  // monochrome zellige — categories vary by motif scale, not color
+  const SCALE = { coiffure: 44, ongles: 30, hammam: 56, soins: 38, massage: 50 };
+  const JOURS = ["lundi","mardi","mercredi","jeudi","vendredi","samedi","dimanche"];
+
+  let DEALS = [];       // rows from catalog_deals, normalized
+  let activeCat = "all";
+
+  const pad = n => String(n).padStart(2, "0");
+  const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+  const toH = t => { const [h, m] = String(t).split(":"); return (+h) + (+m) / 60; };       // "14:00:00" → 14
+  const fmtH = h => pad(Math.floor(h)) + "h" + (h % 1 ? pad(Math.round((h % 1) * 60)) : "00");
+  const evaDay = date => (date.getDay() + 6) % 7;                                           // JS 0=Sun → Eva 0=Mon
+
+  function cssVar(name) {
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  }
+  function zellige(cat) {
+    const s = SCALE[cat] || 40, h = s / 2;
+    const tile = cssVar("--tile"), ground = cssVar("--tile-ground");
+    const pid = "z-" + cat;
+    return `<svg aria-hidden="true" preserveAspectRatio="xMidYMid slice" viewBox="0 0 200 120">
+      <defs><pattern id="${pid}" width="${s}" height="${s}" patternUnits="userSpaceOnUse">
+        <rect width="${s}" height="${s}" fill="${ground}"/>
+        <path d="M${h} ${s*.1} L${s*.6} ${s*.4} L${s*.9} ${h} L${s*.6} ${s*.6} L${h} ${s*.9} L${s*.4} ${s*.6} L${s*.1} ${h} L${s*.4} ${s*.4} Z" fill="${tile}" opacity=".16"/>
+        <circle cx="0" cy="0" r="${s*.12}" fill="${tile}" opacity=".1"/><circle cx="${s}" cy="0" r="${s*.12}" fill="${tile}" opacity=".1"/>
+        <circle cx="0" cy="${s}" r="${s*.12}" fill="${tile}" opacity=".1"/><circle cx="${s}" cy="${s}" r="${s*.12}" fill="${tile}" opacity=".1"/>
+      </pattern></defs>
+      <rect width="200" height="120" fill="url(#${pid})"/>
+    </svg>`;
+  }
+
+  function visual(d) {
+    return d.photo ? `<img src="${esc(d.photo)}" alt="">` : zellige(d.cat);
+  }
+  function face(p) {
+    return p.photo_url
+      ? `<img class="face" src="${esc(p.photo_url)}" alt="">`
+      : `<span class="face">${esc((p.first_name || "?")[0])}</span>`;
+  }
+  function staffLabel(a) {
+    const n = a.map(p => p.first_name);
+    if (n.length === 1) return n[0];
+    if (n.length === 2) return n[0] + " & " + n[1];
+    return n[0] + ", " + n[1] + " +" + (n.length - 2);
+  }
+  function waLink(d) {
+    const msg = `Bonjour ! Je veux réserver « ${d.service} » chez ${d.salon} (${fmtH(d.from)}–${fmtH(d.to)}) — EVA-DEAL:${d.id}`;
+    return `https://wa.me/${WA_NUMBER}?text=${encodeURIComponent(msg)}`;
+  }
+
+  const WA_ICON = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2Zm5.5 14.1c-.2.7-1.3 1.3-1.9 1.4-.5.1-1.1.2-3.4-.7-2.8-1.2-4.7-4-4.8-4.2-.1-.2-1.2-1.6-1.2-3s.7-2.1 1-2.4c.2-.3.5-.3.7-.3h.5c.2 0 .4 0 .6.5l.9 2.1c.1.2.1.4 0 .6l-.4.6-.5.5c-.2.2-.3.4-.1.7.2.3.9 1.5 2 2.4 1.4 1.2 2.5 1.6 2.9 1.7.3.2.5.1.7-.1l1-1.2c.2-.3.4-.2.7-.1l2 1c.3.1.5.2.6.4 0 .1 0 .7-.2 1.1Z"/></svg>`;
+
+  // state: "now" | "later" | "tomorrow" | "week"; day = Eva day index for week cards
+  function card(d, state, day) {
+    let time = "", cls = "";
+    const now = new Date(), h = now.getHours() + now.getMinutes() / 60;
+    if (state === "now") {
+      const mins = Math.round((d.to - h) * 60);
+      time = `Se termine dans ${mins >= 60 ? Math.floor(mins/60) + "h" + pad(mins%60) : mins + " min"}`;
+      cls = "live";
+    } else if (state === "later") time = `Dès ${fmtH(d.from)} aujourd'hui`;
+    else if (state === "tomorrow") time = `Demain ${fmtH(d.from)}–${fmtH(d.to)}`;
+    else time = `${JOURS[day].charAt(0).toUpperCase() + JOURS[day].slice(1)} ${fmtH(d.from)}–${fmtH(d.to)}`;
+    const left = state === "now" && d.left <= 2
+      ? `<span class="badge-left">${d.left} place${d.left>1?"s":""} restante${d.left>1?"s":""}</span>` : "";
+    const rating = d.rating ? ` · <span class="stars">★ ${d.rating}</span>${d.reviews ? ` (${d.reviews} avis Google)` : ""}` : "";
+    return `<article class="deal" data-cat="${esc(d.cat)}">
+      <div class="deal-visual">${visual(d)}
+        <span class="badge-pct">−${Math.round((1 - d.neu/d.old) * 100)}%</span>
+        <span class="badge-window">${fmtH(d.from)} – ${fmtH(d.to)}</span>${left}
+      </div>
+      <div class="deal-body">
+        <div class="deal-top">
+          <div>
+            <div class="service">${esc(d.service)}</div>
+            <div class="salon-line">${esc(d.salon)}${d.quartier ? " · " + esc(d.quartier) : ""}${rating}</div>${d.staff.length ? `<div class="staff-row"><span class="pile">${d.staff.map(face).join("")}</span><span>avec<b>${esc(staffLabel(d.staff))}</b></span></div>` : ""}
+          </div>
+          <div class="prices">
+            <div class="price-old">${d.old} DH</div>
+            <div class="price-new">${d.neu}<small> DH</small></div>
+          </div>
+        </div>
+        <div class="deal-foot">
+          <span class="countdown ${cls}">${time}</span>
+          <a class="wa-btn" href="${waLink(d)}" target="_blank" rel="noopener">${WA_ICON}Réserver</a>
+        </div>
+      </div>
+    </article>`;
+  }
+
+  // next day (Eva index) this deal runs, starting from tomorrow; null if none
+  function nextDay(d, today) {
+    for (let o = 1; o <= 7; o++) { if (d.days.includes((today + o) % 7)) return o; }
+    return null;
+  }
+
+  function render() {
+    const now = new Date(), h = now.getHours() + now.getMinutes() / 60, today = evaDay(now);
+    const vis = DEALS.filter(d => activeCat === "all" || d.cat === activeCat);
+    const live = [], later = [], tmrw = [], week = [];
+    for (const d of vis) {
+      const runsToday = d.days.includes(today);
+      if (runsToday && h >= d.from && h < d.to && d.left > 0) { live.push(d); continue; }
+      if (runsToday && h < d.from) { later.push(d); continue; }
+      const o = nextDay(d, today);
+      if (o === 1) tmrw.push(d);
+      else if (o) week.push([d, (today + o) % 7, o]);
+    }
+    later.sort((a,b) => a.from - b.from); tmrw.sort((a,b) => a.from - b.from);
+    week.sort((a,b) => a[2] - b[2] || a[0].from - b[0].from);
+    document.getElementById("now").innerHTML =
+      live.length ? live.map(d => card(d, "now")).join("") : `<p class="empty">Rien en ce moment dans cette catégorie — regardez plus bas.</p>`;
+    document.getElementById("later").innerHTML =
+      later.length ? later.map(d => card(d, "later")).join("") : `<p class="empty">Tous les créneaux du jour sont passés — à demain !</p>`;
+    document.getElementById("tomorrow").innerHTML = tmrw.map(d => card(d, "tomorrow")).join("");
+    document.getElementById("week").innerHTML = week.map(([d, day]) => card(d, "week", day)).join("");
+    document.getElementById("week-wrap").style.display = week.length ? "" : "none";
+  }
+
+  function renderChips() {
+    document.getElementById("chips").innerHTML = CATS.map(c =>
+      `<button class="chip" aria-pressed="${c.key === activeCat}" data-cat="${c.key}">${c.label}</button>`).join("");
+  }
+  document.getElementById("chips").addEventListener("click", e => {
+    const b = e.target.closest(".chip"); if (!b) return;
+    activeCat = b.dataset.cat; renderChips(); render();
+  });
+
+  async function load() {
+    try {
+      const r = await fetch(`${SB_URL}/rest/v1/catalog_deals?select=*`, { headers: { apikey: SB_KEY } });
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      const rows = await r.json();
+      DEALS = rows.map(x => ({
+        id: x.id, service: x.service_name, cat: x.category || "soins",
+        old: x.verified_price_mad, neu: x.deal_price_mad,
+        days: x.window_days || [], from: toH(x.window_start), to: toH(x.window_end),
+        left: x.places_left_today, photo: x.photo_url,
+        salon: x.salon_name, quartier: x.quartier,
+        rating: x.google_rating, reviews: x.google_reviews,
+        staff: x.practitioners || [],
+      }));
+      render();
+    } catch (err) {
+      document.getElementById("now").innerHTML =
+        `<p class="empty">Le catalogue n'arrive pas à charger — réessayez dans un instant.</p>`;
+    }
+  }
+
+  function tick() {
+    const n = new Date();
+    document.getElementById("clock-time").textContent = pad(n.getHours()) + ":" + pad(n.getMinutes());
+    document.getElementById("clock-day").textContent =
+      n.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" });
+    render();
+  }
+
+  document.getElementById("salon-wa").href =
+    `https://wa.me/${WA_NUMBER}?text=${encodeURIComponent("Bonjour ! J'ai un salon et je veux en savoir plus sur Eva")}`;
+
+  renderChips(); tick(); load();
+  setInterval(tick, 30000);      // clock + re-bucket every 30 s
+  setInterval(load, 300000);     // re-fetch inventory every 5 min
+</script>
