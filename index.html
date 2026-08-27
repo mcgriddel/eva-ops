@@ -50,10 +50,10 @@
   .sect:first-child { margin-top:4px; }
   .sect h2 { margin:0; font-size:15px; text-transform:uppercase; letter-spacing:.08em; }
   .sect .muted { font-size:12px; }
-  .flat { padding:9px 14px; font-size:13.5px; display:flex; gap:10px; align-items:baseline; flex-wrap:wrap; }
-  .flat b { font-variant-numeric:tabular-nums; }
+  .sect .link { margin-left:auto; }
   .zen { text-align:center; color:var(--grey); padding:18px 0 6px; font-size:14px; }
-  .salonhead { font-weight:700; font-size:13px; text-transform:uppercase; letter-spacing:.05em; margin:14px 0 6px; color:var(--soft); }
+  .stat { margin-top:8px; font-size:13.5px; }
+  .stat .k { font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.07em; color:var(--soft); margin-right:6px; }
   .toast { position:fixed; bottom:16px; left:50%; transform:translateX(-50%); background:var(--ink); color:var(--ivory); padding:10px 18px; border-radius:999px; font-size:13.5px; opacity:0; transition:opacity .3s; pointer-events:none; z-index:9; }
 </style>
 </head>
@@ -74,7 +74,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 const sb = createClient('https://iapwfxbfwlnibyucetca.supabase.co', 'sb_publishable_3XDoudJTZYbZNPjajzsccg_pTqf0F-U');
 const FN = 'https://iapwfxbfwlnibyucetca.supabase.co' + '/functions/v1/ops-send';
 const app = document.getElementById('app');
-let tab = 'bookings', session = null, timer = null, openPhone = null, historyQuery = '';
+let tab = 'bookings', session = null, timer = null, openPhone = null, historyQuery = '', archiveMode = false;
 const proposeOpen = {}; // booking id → true while the "yes, but…" editor is open
 const noShowOpen = {};  // booking id → true while the no-show reason input is open
 const tlOpen = {};      // booking id → true while the conversation timeline is expanded
@@ -142,7 +142,7 @@ function threadView(phone, msgs){
   };
 }
 
-// ————— BOOKINGS: Needs you → Today → Upcoming → In flight → History —————
+// ————— BOOKINGS: Needs you → In flight → Finished (Archive is its own page) —————
 
 const TODAY = () => new Date().toLocaleDateString('en-CA', { timeZone:'Africa/Casablanca' });
 function slotPassed(b){
@@ -153,6 +153,7 @@ const hhmmT = ts => new Date(ts).toLocaleTimeString([], { hour:'2-digit', minute
 const hh = t => (t || '').slice(0,5).replace(':','h');
 const ageMin = b => Math.round((Date.now() - new Date(b.created_at)) / 60000);
 const ageLabel = m => m >= 60 ? Math.floor(m/60) + 'h' + String(m%60).padStart(2,'0') : m + ' min';
+const dayWord = d => d === TODAY() ? 'today' : d;
 
 function bookingLine(b){
   const team = (b.notes || '').startsWith('Avec : ') ? ' ' + esc(b.notes.replace('Avec : ', 'avec ')) : (b.practitioners?.first_name ? ' avec ' + esc(b.practitioners.first_name) : '');
@@ -199,12 +200,13 @@ function proposeEditor(b){
     '<button class="act" data-a="propose" data-id="' + b.id + '">Send offer to client</button>' +
     '<button class="act ghost" data-a="propose_back" data-id="' + b.id + '">← back</button></div>';
 }
-function bookingHead(b, extraPill){
-  return '<div class="row"><strong>' + esc(b.ref) + '</strong><span style="display:flex;gap:6px">' + (extraPill || '') +
-    '<span class="pill ' + (b.state === 'pending_salon' ? 'pending' : b.state === 'confirmed' ? 'confirmed' : '') + '">' + esc(b.state) + '</span></span></div>' +
+function bookingHead(b){
+  return '<div class="row"><strong>' + esc(b.ref) + '</strong>' +
+    '<span class="pill ' + (b.state === 'pending_salon' ? 'pending' : ['confirmed','reminded','showed'].includes(b.state) ? 'confirmed' : '') + '">' + esc(b.state === 'pending_salon' ? 'waiting on salon' : b.state) + '</span></div>' +
     '<div>' + esc(b.customer_name || 'Client') + ' · +' + esc(b.customer_phone) + '</div>' +
     '<div class="muted">' + bookingLine(b) + '</div>';
 }
+const statLine = (label, html) => '<div class="stat"><span class="k">' + label + '</span>' + html + '</div>';
 
 async function bookingsView(){
   const { data: bks, error } = await sb.from('bookings')
@@ -219,12 +221,12 @@ async function bookingsView(){
   const tl = b => tlById[b.id] || [];
   const pingOf = b => tl(b).filter(m => m.party === 'salon' && m.direction === 'out' && m.msg_type === 'buttons').pop();
   const lastSalonMsg = b => tl(b).filter(m => m.party === 'salon' && m.direction === 'in').pop();
-  const today = TODAY();
 
-  // — classify every booking into exactly one section —
-  const cases = [], todayList = [], upcoming = [], inflight = [], rest = [];
+  // — classify every booking into exactly one of three piles —
+  const cases = [], inflight = [], finished = [];
   for(const b of (bks || [])){
     const pending = b.state === 'pending_salon' || b.state === 'received';
+    const liveConf = ['confirmed','reminded'].includes(b.state);
     if(b.needs_review) cases.push({ b, type: b.review_reason || 'review' });
     else if(pending){
       if(slotPassed(b)) cases.push({ b, type:'slot_passed' });
@@ -233,15 +235,33 @@ async function bookingsView(){
       else if(ageMin(b) > 15) cases.push({ b, type:'sla' });
       else inflight.push(b);
     }
-    else if(['confirmed','reminded','showed','no_show'].includes(b.state) && b.slot_date === today) todayList.push(b);
-    else if(['confirmed','reminded'].includes(b.state) && b.slot_date > today) upcoming.push(b);
-    else rest.push(b);
+    else if(liveConf && slotPassed(b)) cases.push({ b, type:'attest' });   // « did she come? » is work
+    else if(liveConf) inflight.push(b);
+    else finished.push(b);
   }
   document.getElementById('bookBadge').innerHTML = cases.length ? '<span class="badge">' + cases.length + '</span>' : '';
 
+  // ————— ARCHIVE: its own page, search + full timelines —————
+  if(archiveMode){
+    let html = '<button class="act ghost" data-arch="off">← Back to bookings</button>' +
+      '<div class="sect"><h2>Archive</h2><span class="muted">' + (bks || []).length + ' bookings, newest first</span></div>' +
+      '<input id="hq" placeholder="search ref, name, phone, salon, service…" value="' + esc(historyQuery) + '" style="margin-bottom:10px">';
+    const q = historyQuery.trim().toLowerCase();
+    const shown = (q ? (bks || []).filter(b => [b.ref, b.customer_name, b.customer_phone, b.salons?.name, b.deals?.service_name].some(x => (x || '').toLowerCase().includes(q))) : (bks || []).slice(0, 30));
+    for(const b of shown){
+      html += '<div class="card">' + bookingHead(b) +
+        (b.no_show_reason ? '<div class="muted" style="margin-top:6px">no-show reason: ' + esc(b.no_show_reason) + '</div>' : '') +
+        timeline(b, tl(b)) + '</div>';
+    }
+    if(!q && (bks || []).length > 30) html += '<div class="zen muted">' + ((bks || []).length - 30) + ' more — search to find them.</div>';
+    app.innerHTML = html;
+    wireBookings();
+    return;
+  }
+
   let html = '';
 
-  // ① NEEDS YOU — the only section with work in it. Empty = the machine is running itself.
+  // ① NEEDS YOU — every card that asks something of you, nothing else does.
   html += '<div class="sect"><h2>Needs you</h2><span class="muted">' + (cases.length ? cases.length + ' case' + (cases.length > 1 ? 's' : '') : '') + '</span></div>';
   if(!cases.length) html += '<div class="zen">Nothing needs you — the machine is running itself 🌸</div>';
   for(const { b, type } of cases){
@@ -265,6 +285,14 @@ async function bookingsView(){
       act = '<div class="row" style="justify-content:flex-start;margin-top:8px">' +
         '<button class="act ghost" data-a="resolve" data-id="' + b.id + '">Keep « came »</button>' +
         '<button class="act ghost" data-a="noshow_confirm" data-id="' + b.id + '">Switch to no-show</button></div>';
+    } else if(type === 'attest'){
+      why = 'The ' + (b.slot_time ? hh(b.slot_time) + ' ' : '') + 'slot has passed — <b>did she come?</b> « She came » is the fee event.' +
+        (b.client_checkin === 'not_yet' ? ' (Client said « pas encore » at check-in.)' : '');
+      act = '<div class="row" style="justify-content:flex-start;margin-top:8px">' +
+        '<button class="act" data-a="showed" data-id="' + b.id + '">She came ✓</button>' +
+        '<button class="act ghost" data-a="noshow_open" data-id="' + b.id + '">No-show…</button>' +
+        '<button class="link" data-a="cancel_confirmed" data-id="' + b.id + '">it never happened — salon cancelled?</button></div>' +
+        (noShowOpen[b.id] ? '<div class="row" style="justify-content:flex-start;margin-top:6px"><input data-nsr="' + b.id + '" placeholder="reason (optional)" style="max-width:260px;margin:0"><button class="act" data-a="noshow_confirm" data-id="' + b.id + '">Save no-show</button></div>' : '');
     } else if(type === 'no_ping'){
       why = '☎️ No salon WhatsApp on file — the machine <b>could not ping them</b>. Ask the salon yourself and press their answer:';
       act = proposeOpen[b.id] ? proposeEditor(b) : relayButtons(b);
@@ -282,71 +310,50 @@ async function bookingsView(){
       act = '<div class="row" style="justify-content:flex-start;margin-top:8px"><button class="act ghost" data-a="resolve" data-id="' + b.id + '">Seen, OK ✓</button></div>';
     }
     html += '<div class="card case' + (hot ? ' hot' : '') + '">' + bookingHead(b) +
-      '<div style="margin-top:8px;font-size:13.5px"><span style="font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--soft);margin-right:6px">Status</span>' + why + '</div>' + act + timeline(b, tl(b)) + '</div>';
+      statLine('Status', why) + act + timeline(b, tl(b)) + '</div>';
   }
 
-  // ② TODAY — the day sheet, grouped by salon: redemption + attestation worklist
-  html += '<div class="sect"><h2>Today</h2><span class="muted">confirmed visits · mark arrivals after the slot</span></div>';
-  if(!todayList.length) html += '<div class="zen muted">No confirmed visits today.</div>';
-  const bySalon = {};
-  for(const b of todayList){ (bySalon[b.salons?.name || '?'] = bySalon[b.salons?.name || '?'] || []).push(b); }
-  for(const s of Object.keys(bySalon).sort()){
-    html += '<div class="salonhead">' + esc(s) + ' · ' + bySalon[s].length + '</div>';
-    for(const b of bySalon[s].sort((a, c) => String(a.slot_time || '').localeCompare(String(c.slot_time || '')))){
-      let tail = '';
-      if(b.state === 'showed'){
-        const src = { salon_tap:'salon', client_checkin:'client', ops:'you' }[b.showed_source] || '';
-        tail = '<span class="pill confirmed">came' + (src ? ' · ' + src : '') + '</span>';
-      } else if(b.state === 'no_show'){
-        tail = '<span class="pill">no-show</span>';
-      } else if(slotPassed(b)){
-        tail = noShowOpen[b.id]
-          ? '<span style="display:flex;gap:6px;align-items:center"><input data-nsr="' + b.id + '" placeholder="reason (optional)" style="width:170px;margin:0"><button class="act" data-a="noshow_confirm" data-id="' + b.id + '">Save no-show</button><button class="link" data-a="noshow_close" data-id="' + b.id + '">×</button></span>'
-          : '<span style="display:flex;gap:6px"><button class="act" data-a="showed" data-id="' + b.id + '">She came ✓</button><button class="act ghost" data-a="noshow_open" data-id="' + b.id + '">No-show…</button></span>';
-      } else {
-        tail = '<span class="muted">' + (b.client_checkin === 'served' ? 'client checked in ✓' : 'upcoming') + '</span> <button class="link" data-a="cancel_confirmed" data-id="' + b.id + '">salon cancels (imprévu)?</button>';
-      }
-      html += '<div class="card flat"><b>' + hh(b.slot_time) + '</b> ' + esc(b.customer_name || 'Client') + ' · ' + esc(b.deals?.service_name || '?') +
-        ((b.party_size || 1) > 1 ? ' · ' + b.party_size + ' pers.' : '') + ' · <span class="muted">' + esc(b.ref) + ' · ' + (b.price_mad ?? '?') + ' DH</span>' +
-        '<span style="margin-left:auto">' + tail + '</span></div>';
-    }
-  }
-
-  // ③ UPCOMING — future confirmed, calm
-  if(upcoming.length){
-    html += '<div class="sect"><h2>Upcoming</h2><span class="muted">' + upcoming.length + ' confirmed</span></div>';
-    for(const b of upcoming.sort((a, c) => String(a.slot_date).localeCompare(String(c.slot_date)) || String(a.slot_time || '').localeCompare(String(c.slot_time || '')))){
-      html += '<div class="card flat"><b>' + esc(b.slot_date) + ' ' + hh(b.slot_time) + '</b> ' + esc(b.customer_name || 'Client') + ' · ' +
-        esc(b.deals?.service_name || '?') + ' · ' + esc(b.salons?.name || '?') + ' · <span class="muted">' + esc(b.ref) + '</span>' +
-        '<span style="margin-left:auto"><button class="link" data-a="cancel_confirmed" data-id="' + b.id + '">salon cancels?</button></span></div>';
-    }
-  }
-
-  // ④ IN FLIGHT — healthy pendings; the machine is on it, nothing to click
-  html += '<div class="sect"><h2>In flight</h2><span class="muted">waiting on the salon\'s tap — the machine finishes these on its own</span></div>';
+  // ② IN FLIGHT — alive, machine-driven, nothing to press. Same cards, no buttons.
+  inflight.sort((a, c) => {
+    const ap = a.state === 'pending_salon' || a.state === 'received';
+    const cp = c.state === 'pending_salon' || c.state === 'received';
+    if(ap !== cp) return ap ? -1 : 1;
+    return String(a.slot_date || '').localeCompare(String(c.slot_date || '')) || String(a.slot_time || '').localeCompare(String(c.slot_time || ''));
+  });
+  html += '<div class="sect"><h2>In flight</h2><span class="muted">the machine is driving these — nothing to do</span></div>';
   if(!inflight.length) html += '<div class="zen muted">Nothing in flight.</div>';
   for(const b of inflight){
-    html += '<div class="card flat"><b>' + esc(b.ref) + '</b> ' + esc(b.customer_name || 'Client') + ' · ' + esc(b.deals?.service_name || '?') + ' · ' +
-      esc(b.salons?.name || '?') + ' · ' + esc(b.slot_date || '') + ' ' + hh(b.slot_time) +
-      '<span style="margin-left:auto" class="muted">waiting ' + ageLabel(ageMin(b)) + ' · ' + pingStatus(pingOf(b)) + '</span></div>';
+    const pending = b.state === 'pending_salon' || b.state === 'received';
+    const status = pending
+      ? '⏳ Waiting on the salon\'s tap — ' + ageLabel(ageMin(b)) + ' · ' + pingStatus(pingOf(b)) + '. Their tap finishes it; silent past 15 min → it moves up to Needs you.'
+      : '✅ Confirmed for <b>' + dayWord(b.slot_date) + (b.slot_time ? ' ' + hh(b.slot_time) : '') + '</b>.' +
+        (b.client_checkin === 'served' ? ' Client checked in ✓' : '') +
+        ' <button class="link" data-a="cancel_confirmed" data-id="' + b.id + '">salon cancels (imprévu)?</button>';
+    html += '<div class="card">' + bookingHead(b) + statLine('Status', status) + timeline(b, tl(b)) + '</div>';
   }
 
-  // ⑤ HISTORY — search on demand; dispute + settlement evidence lives here
-  html += '<div class="sect"><h2>History</h2><span class="muted">' + rest.length + ' bookings</span></div>' +
-    '<input id="hq" placeholder="search ref, name, phone, salon…" value="' + esc(historyQuery) + '" style="margin-bottom:10px">';
-  const q = historyQuery.trim().toLowerCase();
-  const shown = (q ? rest.filter(b => [b.ref, b.customer_name, b.customer_phone, b.salons?.name, b.deals?.service_name].some(x => (x || '').toLowerCase().includes(q))) : rest.slice(0, 15));
-  for(const b of shown){
-    html += '<div class="card">' + bookingHead(b) + timeline(b, tl(b)) +
-      (b.no_show_reason ? '<div class="muted" style="margin-top:6px">no-show reason: ' + esc(b.no_show_reason) + '</div>' : '') + '</div>';
+  // ③ FINISHED — recent outcomes; everything older lives in the Archive.
+  finished.sort((a, c) => String(c.updated_at || c.created_at).localeCompare(String(a.updated_at || a.created_at)));
+  html += '<div class="sect"><h2>Finished</h2><span class="muted">recent outcomes</span>' +
+    '<button class="link" data-arch="on">Open the archive (' + (bks || []).length + ') →</button></div>';
+  if(!finished.length) html += '<div class="zen muted">No finished bookings yet.</div>';
+  for(const b of finished.slice(0, 6)){
+    const note = b.state === 'showed' ? ('fee applies · marked by ' + ({ salon_tap:'the salon', client_checkin:'the client', ops:'you' }[b.showed_source] || '—'))
+      : b.state === 'no_show' ? ('no fee' + (b.no_show_reason ? ' · ' + esc(b.no_show_reason) : ''))
+      : b.state === 'expired' ? 'no salon answer in time — client got the apology'
+      : '';
+    html += '<div class="card">' + bookingHead(b) + (note ? statLine('Outcome', note) : '') + timeline(b, tl(b)) + '</div>';
   }
-  if(!q && rest.length > 15) html += '<div class="zen muted">' + (rest.length - 15) + ' older — search to find them.</div>';
+  if(finished.length > 6) html += '<div class="zen muted">' + (finished.length - 6) + ' more in the archive.</div>';
 
   app.innerHTML = html;
+  wireBookings();
+}
 
+function wireBookings(){
   const hq = document.getElementById('hq');
-  hq.oninput = () => { historyQuery = hq.value; clearTimeout(hq._t); hq._t = setTimeout(refresh, 350); };
-
+  if(hq) hq.oninput = () => { historyQuery = hq.value; clearTimeout(hq._t); hq._t = setTimeout(refresh, 350); };
+  app.querySelectorAll('[data-arch]').forEach(el => el.onclick = () => { archiveMode = el.dataset.arch === 'on'; historyQuery = ''; refresh(); });
   app.querySelectorAll('[data-a]').forEach(el => el.onclick = async () => {
     const id = el.dataset.id, a = el.dataset.a;
     if(a === 'tl_open'){ tlOpen[id] = true; refresh(); return; }
@@ -442,7 +449,7 @@ function refresh(){
 document.getElementById('nav').onclick = async (e) => {
   const t = e.target.closest('[data-t]')?.dataset.t; if(!t) return;
   if(t === 'out'){ await sb.auth.signOut(); return; }
-  tab = t; openPhone = null; refresh();
+  tab = t; openPhone = null; archiveMode = false; refresh();
 };
 sb.auth.onAuthStateChange((_e, s) => { session = s; refresh(); });
 const { data: { session: s0 } } = await sb.auth.getSession(); session = s0; refresh();
