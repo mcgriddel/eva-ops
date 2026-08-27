@@ -415,17 +415,17 @@
         return '<button class="opt" data-slot="' + t + '" aria-pressed="' + (t === selTime) + '"' + (gone ? ' disabled' : '') + '>' + fmtH(t) + '</button>';
       }).join('') : '<span class="sub2">Plus de créneau ce jour-là — choisissez un autre jour.</span>') +
       '</div>' +
-      (practs.length ? '<div class="lbl">Avec qui ?</div><div class="optrow">' +
+      (practs.length ? '<div class="lbl">Avec qui ?' + (selParty > 1 ? ' <span style="text-transform:none;letter-spacing:0">— pour un groupe, le salon compose l\'équipe</span>' : '') + '</div><div class="optrow">' +
         '<button class="opt" data-pract="" aria-pressed="' + (selPract === null) + '">Peu importe</button>' +
         practs.map(p => {
-          const busy = practBusy(p);
-          return '<button class="opt" data-pract="' + p.id + '" aria-pressed="' + (p.id === selPract) + '"' + (busy ? ' disabled' : '') + '>' + practFace(p) + esc(p.first_name) + (busy ? ' · prise' : '') + '</button>';
+          const busy = practBusy(p) || selParty > 1;
+          return '<button class="opt" data-pract="' + p.id + '" aria-pressed="' + (p.id === selPract) + '"' + (busy ? ' disabled' : '') + '>' + practFace(p) + esc(p.first_name) + (practBusy(p) ? ' · prise' : '') + '</button>';
         }).join('') + '</div>' : '') +
-      '<div class="lbl">Pour combien de personnes ?</div><div class="optrow">' +
-      [1, 2, 3].map(n => {
+      (d.maxParty > 1 ? '<div class="lbl">Pour combien de personnes ?</div><div class="optrow">' +
+      Array.from({ length: Math.min(3, d.maxParty) }, (_, i) => i + 1).map(n => {
         const over = dISO !== null && n > dayLeft(d, dISO);
         return '<button class="opt" data-party="' + n + '" aria-pressed="' + (n === selParty) + '"' + (over ? ' disabled' : '') + '>' + (n === 1 ? '1 personne' : n + ' personnes') + '</button>';
-      }).join('') + '</div>' +
+      }).join('') + '</div>' : '') +
       '<div class="lbl">Votre prénom <span style="text-transform:none;letter-spacing:0">(pour vous accueillir au salon)</span></div>' +
       '<input type="text" id="bk-name" autocomplete="given-name" placeholder="Ex : Salma" value="' + esc(keepName) + '">' +
       '<button class="go" id="bk-go"' + (selTime === null ? ' disabled' : '') + '>' + WA_ICON + 'Réserver sur WhatsApp</button>';
@@ -433,7 +433,7 @@
     document.querySelectorAll("#sheet [data-day]").forEach(b => b.onclick = () => { selDayOffset = +b.dataset.day; selTime = null; renderSheet(); });
     document.querySelectorAll("#sheet [data-slot]").forEach(b => b.onclick = () => { selTime = +b.dataset.slot; renderSheet(); });
     document.querySelectorAll("#sheet [data-pract]").forEach(b => b.onclick = () => { selPract = b.dataset.pract || null; renderSheet(); });
-    document.querySelectorAll("#sheet [data-party]").forEach(b => b.onclick = () => { selParty = +b.dataset.party; renderSheet(); });
+    document.querySelectorAll("#sheet [data-party]").forEach(b => b.onclick = () => { selParty = +b.dataset.party; if (selParty > 1) selPract = null; renderSheet(); });
     document.getElementById("bk-go").onclick = () => {
       if (!opt || selTime === null) return;
       const nm = document.getElementById("bk-name").value.trim();
@@ -554,7 +554,7 @@
         id: x.id, code: x.short_code, service: x.service_name, cat: x.category || "soins",
         old: x.verified_price_mad, neu: x.deal_price_mad,
         days: x.window_days || [], from: toH(x.window_start), to: toH(x.window_end),
-        left: x.places_left_today, cap: x.cap_per_day, photo: x.photo_url,
+        left: x.places_left_today, cap: x.cap_per_day, maxParty: x.max_party || 1, photo: x.photo_url,
         salon: x.salon_name, quartier: x.quartier,
         rating: x.google_rating, reviews: x.google_reviews,
         staff: x.practitioners || [],
