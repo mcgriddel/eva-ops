@@ -134,7 +134,10 @@ async function bookingsView(){
   if(!bks || !bks.length){ app.innerHTML = '<p class="muted">No bookings yet.</p>'; return; }
   app.innerHTML = bks.map(b => {
     const acts = b.state === 'pending_salon' || b.state === 'received'
-      ? '<button class="act" data-a="confirm" data-id="' + b.id + '">Confirm → client</button><button class="act ghost" data-a="cancel" data-id="' + b.id + '">Cancel</button>'
+      ? '<div style="width:100%"><div class="muted" style="margin-bottom:6px">Check with the salon, then confirm — the client gets the confirmation on WhatsApp.</div>' +
+        '<div class="row" style="justify-content:flex-start"><input type="time" data-time="' + b.id + '" style="width:120px;margin:0">' +
+        '<button class="act" data-a="confirm" data-id="' + b.id + '">Confirm booking</button>' +
+        '<button class="act ghost" data-a="cancel" data-id="' + b.id + '">Cancel booking</button></div></div>'
       : b.state === 'confirmed' || b.state === 'reminded'
       ? '<button class="act" data-a="showed" data-id="' + b.id + '">Showed ✓</button><button class="act ghost" data-a="no_show" data-id="' + b.id + '">No-show</button>' : '';
     return '<div class="card"><div class="row"><strong>' + esc(b.ref) + '</strong>' +
@@ -145,9 +148,10 @@ async function bookingsView(){
   }).join('');
   app.querySelectorAll('[data-a]').forEach(el => el.onclick = async () => {
     const id = el.dataset.id, a = el.dataset.a;
-    if(a === 'confirm'){ const t = prompt('Time to confirm (e.g. 14:30) — leave empty to keep as is') || undefined; await ops({ action:'confirm_booking', booking_id:id, slot_time:t }); }
+    el.disabled = true; el.textContent = '…';
+    if(a === 'confirm'){ const t = app.querySelector('[data-time="' + id + '"]')?.value || undefined; await ops({ action:'confirm_booking', booking_id:id, slot_time:t }); }
     else if(a === 'cancel'){ await ops({ action:'cancel_booking', booking_id:id }); }
-    else { await sb.from('bookings').update({ state:a, updated_at:new Date().toISOString() }).eq('id', id); }
+    else { const { error } = await sb.from('bookings').update({ state:a, updated_at:new Date().toISOString() }).eq('id', id); if(error) toast(error.message); }
     refresh();
   });
 }
@@ -225,7 +229,7 @@ document.getElementById('nav').onclick = async (e) => {
 };
 sb.auth.onAuthStateChange((_e, s) => { session = s; refresh(); });
 const { data: { session: s0 } } = await sb.auth.getSession(); session = s0; refresh();
-clearInterval(timer); timer = setInterval(() => { if(session && (tab === 'inbox' || tab === 'bookings') && !document.getElementById('rt')) refresh(); }, 10000);
+clearInterval(timer); timer = setInterval(() => { if(session && (tab === 'inbox' || tab === 'bookings') && !document.getElementById('rt') && !document.activeElement?.matches?.('input, textarea')) refresh(); }, 10000);
 </script>
 </body>
 </html>
