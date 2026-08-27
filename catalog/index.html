@@ -415,11 +415,11 @@
         return '<button class="opt" data-slot="' + t + '" aria-pressed="' + (t === selTime) + '"' + (gone ? ' disabled' : '') + '>' + fmtH(t) + '</button>';
       }).join('') : '<span class="sub2">Plus de créneau ce jour-là — choisissez un autre jour.</span>') +
       '</div>' +
-      (practs.length ? '<div class="lbl">Avec qui ?' + (selParty > 1 ? ' <span style="text-transform:none;letter-spacing:0">— pour un groupe, le salon compose l\'équipe</span>' : '') + '</div><div class="optrow">' +
+      (practs.length ? '<div class="lbl">Avec qui ?' + (selParty > 1 ? ' <span style="text-transform:none;letter-spacing:0">— votre préférence, le salon complète l\'équipe</span>' : '') + '</div><div class="optrow">' +
         '<button class="opt" data-pract="" aria-pressed="' + (selPract === null) + '">Peu importe</button>' +
         practs.map(p => {
-          const busy = practBusy(p) || selParty > 1;
-          return '<button class="opt" data-pract="' + p.id + '" aria-pressed="' + (p.id === selPract) + '"' + (busy ? ' disabled' : '') + '>' + practFace(p) + esc(p.first_name) + (practBusy(p) ? ' · prise' : '') + '</button>';
+          const busy = practBusy(p);
+          return '<button class="opt" data-pract="' + p.id + '" aria-pressed="' + (p.id === selPract) + '"' + (busy ? ' disabled' : '') + '>' + practFace(p) + esc(p.first_name) + (busy ? ' · prise' : '') + '</button>';
         }).join('') + '</div>' : '') +
       (d.maxParty > 1 ? '<div class="lbl">Pour combien de personnes ?</div><div class="optrow">' +
       Array.from({ length: Math.min(3, d.maxParty) }, (_, i) => i + 1).map(n => {
@@ -433,7 +433,7 @@
     document.querySelectorAll("#sheet [data-day]").forEach(b => b.onclick = () => { selDayOffset = +b.dataset.day; selTime = null; renderSheet(); });
     document.querySelectorAll("#sheet [data-slot]").forEach(b => b.onclick = () => { selTime = +b.dataset.slot; renderSheet(); });
     document.querySelectorAll("#sheet [data-pract]").forEach(b => b.onclick = () => { selPract = b.dataset.pract || null; renderSheet(); });
-    document.querySelectorAll("#sheet [data-party]").forEach(b => b.onclick = () => { selParty = +b.dataset.party; if (selParty > 1) selPract = null; renderSheet(); });
+    document.querySelectorAll("#sheet [data-party]").forEach(b => b.onclick = () => { selParty = +b.dataset.party; renderSheet(); });
     document.getElementById("bk-go").onclick = () => {
       if (!opt || selTime === null) return;
       const nm = document.getElementById("bk-name").value.trim();
