@@ -4,12 +4,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Eva Console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:ital,opsz,wght@1,6..96,500;1,6..96,600&family=Albert+Sans:wght@400;500;600;700&display=swap">
 <style>
   :root { --ivory:#F4F2EE; --paper:#ECE9E2; --ink:#141311; --soft:#454239; --grey:#9B978F; --line:#D6D2C8; --ok:#1F7A4D; --warn:#8A5A00; }
   * { margin:0; padding:0; box-sizing:border-box; }
-  body { background:var(--ivory); color:var(--ink); font:15px/1.45 -apple-system, 'Segoe UI', Roboto, sans-serif; }
-  header { display:flex; align-items:center; gap:14px; padding:12px 16px; border-bottom:2px solid var(--ink); position:sticky; top:0; background:var(--ivory); z-index:5; }
-  header h1 { font-family:Georgia, serif; font-size:22px; }
+  body { background:var(--ivory); color:var(--ink); font:15px/1.5 'Albert Sans', -apple-system, 'Segoe UI', Roboto, sans-serif; }
+  header { display:flex; align-items:baseline; gap:10px; padding:14px 18px; border-bottom:2px solid var(--ink); position:sticky; top:0; background:var(--ivory); z-index:5; }
+  header h1 { font-family:'Bodoni Moda', Didot, Georgia, serif; font-style:italic; font-weight:600; font-size:25px; letter-spacing:.01em; }
   nav { display:flex; gap:6px; margin-left:auto; flex-wrap:wrap; }
   nav button { border:1px solid var(--line); background:var(--paper); padding:8px 14px; border-radius:999px; font-size:13px; font-weight:600; cursor:pointer; }
   nav button.on { background:var(--ink); color:var(--ivory); border-color:var(--ink); }
@@ -22,11 +24,19 @@
   .pill.confirmed { background:#E0F0E7; border-color:#B5D9C4; color:var(--ok); }
   .pill.live { background:#E0F0E7; color:var(--ok); }
   button.act { border:1px solid var(--ink); background:var(--ink); color:var(--ivory); padding:9px 14px; border-radius:8px; font-weight:600; cursor:pointer; font-size:13.5px; min-height:40px; }
-  button.ghost { background:transparent; color:var(--ink); }
+  button.ghost { background:transparent; color:var(--ink); border:1.5px solid var(--ink); }
   input, select, textarea { width:100%; padding:10px; border:1px solid var(--line); border-radius:8px; font-size:15px; background:#fff; margin-top:6px; }
-  label { font-size:12px; font-weight:700; color:var(--soft); text-transform:uppercase; letter-spacing:.06em; display:block; margin-top:10px; }
+  label { font-size:11.5px; font-weight:700; color:var(--soft); text-transform:uppercase; letter-spacing:.08em; display:block; margin-top:16px; }
   form .act { margin-top:14px; }
-  #login { max-width:360px; margin:12vh auto; }
+  #login { max-width:380px; margin:10vh auto; padding:26px 26px 24px; }
+  #login h2 { margin:0 0 4px; font-size:20px; }
+  .btnrow { display:flex; gap:10px; margin-top:22px; }
+  .btnrow .act { flex:1; }
+  input:focus, select:focus, textarea:focus { outline:none; border-color:var(--ink); box-shadow:0 0 0 3px rgba(20,19,17,.08); }
+  button:focus-visible { outline:2px solid var(--ink); outline-offset:2px; }
+  button.act { transition:opacity .15s; }
+  button.act:hover { opacity:.85; }
+  nav button:hover { border-color:var(--ink); }
   .thread { max-height:50vh; overflow-y:auto; display:flex; flex-direction:column; gap:6px; padding:8px 0; }
   .msg { max-width:80%; padding:8px 12px; border-radius:12px; font-size:14px; }
   .msg.in { background:#fff; border:1px solid var(--line); align-self:flex-start; }
@@ -70,8 +80,8 @@ function loginView(){
   app.innerHTML = '<div id="login" class="card"><h2 style="margin-top:0">Sign in</h2>' +
     '<label>Email</label><input id="em" type="email" autocomplete="username">' +
     '<label>Password</label><input id="pw" type="password" autocomplete="current-password">' +
-    '<button class="act" id="si">Sign in</button> <button class="act ghost" id="su">Create account</button>' +
-    '<p class="muted" style="margin-top:10px">Access is restricted to Eva team accounts.</p></div>';
+    '<div class="btnrow"><button class="act" id="si">Sign in</button><button class="act ghost" id="su">Create account</button></div>' +
+    '<p class="muted" style="margin-top:14px">Team accounts only. First time? Create your account, confirm the email Supabase sends you, then sign in.</p></div>';
   document.getElementById('si').onclick = async () => {
     const { error } = await sb.auth.signInWithPassword({ email: em.value.trim(), password: pw.value });
     if(error) toast(error.message);
