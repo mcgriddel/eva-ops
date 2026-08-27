@@ -139,7 +139,9 @@ async function bookingsView(){
         '<button class="act" data-a="confirm" data-id="' + b.id + '">Confirm booking</button>' +
         '<button class="act ghost" data-a="cancel" data-id="' + b.id + '">Cancel booking</button></div></div>'
       : b.state === 'confirmed' || b.state === 'reminded'
-      ? '<button class="act" data-a="showed" data-id="' + b.id + '">Showed ✓</button><button class="act ghost" data-a="no_show" data-id="' + b.id + '">No-show</button>' : '';
+      ? '<div style="width:100%"><div class="muted" style="margin-bottom:6px">After the visit — did she come? (this triggers the salon fee)</div>' +
+        '<div class="row" style="justify-content:flex-start"><button class="act" data-a="showed" data-id="' + b.id + '">She came</button>' +
+        '<button class="act ghost" data-a="no_show" data-id="' + b.id + '">No-show</button></div></div>' : '';
     return '<div class="card"><div class="row"><strong>' + esc(b.ref) + '</strong>' +
       '<span class="pill ' + (b.state === 'pending_salon' ? 'pending' : b.state === 'confirmed' ? 'confirmed' : '') + '">' + esc(b.state) + '</span></div>' +
       '<div>' + esc(b.customer_name || 'Client') + ' · +' + esc(b.customer_phone) + '</div>' +
