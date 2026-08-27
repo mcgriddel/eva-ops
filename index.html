@@ -142,8 +142,12 @@ async function bookingsView(){
       ? '<div style="width:100%"><div class="muted" style="margin-bottom:6px">After the visit — did she come? (this triggers the salon fee)</div>' +
         '<div class="row" style="justify-content:flex-start"><button class="act" data-a="showed" data-id="' + b.id + '">She came</button>' +
         '<button class="act ghost" data-a="no_show" data-id="' + b.id + '">No-show</button></div></div>' : '';
+    const waitMin = b.state === 'pending_salon' ? Math.round((Date.now() - new Date(b.created_at)) / 60000) : null;
+    const waitBadge = waitMin === null ? '' :
+      '<span class="pill' + (waitMin > 15 ? ' pending' : '') + '">waiting ' + (waitMin >= 60 ? Math.floor(waitMin/60) + 'h' + String(waitMin%60).padStart(2,'0') : waitMin + ' min') + '</span>';
     return '<div class="card"><div class="row"><strong>' + esc(b.ref) + '</strong>' +
-      '<span class="pill ' + (b.state === 'pending_salon' ? 'pending' : b.state === 'confirmed' ? 'confirmed' : '') + '">' + esc(b.state) + '</span></div>' +
+      '<span style="display:flex;gap:6px">' + waitBadge +
+      '<span class="pill ' + (b.state === 'pending_salon' ? 'pending' : b.state === 'confirmed' ? 'confirmed' : '') + '">' + esc(b.state) + '</span></span></div>' +
       '<div>' + esc(b.customer_name || 'Client') + ' · +' + esc(b.customer_phone) + '</div>' +
       '<div class="muted">' + esc(b.deals?.service_name || '?') + ' · ' + esc(b.salons?.name || '?') + ' · ' + esc(b.slot_date || '') + ' ' + esc(b.slot_time || '') + ' · ' + (b.price_mad ?? '?') + ' DH</div>' +
       '<div class="row" style="margin-top:10px">' + acts + '</div></div>';

@@ -182,6 +182,37 @@
   .salon-cta a { color: var(--ink); font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
   .demo-note { margin-top: 30px; text-align: center; font-size: 11.5px; color: var(--muted); }
   .empty { color: var(--muted); font-size: 14px; padding: 8px 2px 2px; }
+
+  /* ---------- booking sheet ---------- */
+  #sheet-back { position: fixed; inset: 0; background: rgba(0,0,0,.65); z-index: 40; display: none; }
+  #sheet {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 41; display: none;
+    background: var(--card); border-top: 1px solid var(--ink); border-radius: 10px 10px 0 0;
+    max-width: 480px; margin: 0 auto; padding: 20px 18px calc(22px + env(safe-area-inset-bottom));
+    max-height: 82vh; overflow-y: auto;
+  }
+  #sheet .sheet-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+  #sheet h3 { font-family: "Bodoni Moda", Georgia, serif; font-weight: 550; font-size: 20px; line-height: 1.25; }
+  #sheet .sub2 { font-size: 12.5px; color: var(--muted); margin-top: 3px; }
+  #sheet .x { border: 0; background: transparent; color: var(--muted); font-size: 22px; line-height: 1; cursor: pointer; padding: 2px 4px; }
+  #sheet .lbl { font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin: 18px 0 8px; }
+  .optrow { display: flex; gap: 8px; flex-wrap: wrap; }
+  .opt {
+    border: 1px solid var(--line); background: transparent; color: var(--ink);
+    font: inherit; font-size: 13px; font-weight: 600; padding: 8px 13px; border-radius: 999px; cursor: pointer;
+  }
+  .opt[aria-pressed="true"] { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+  #sheet input[type="text"] {
+    width: 100%; background: var(--paper); border: 1px solid var(--line); color: var(--ink);
+    font: inherit; padding: 11px 12px; border-radius: 8px;
+  }
+  #sheet .go {
+    display: flex; width: 100%; justify-content: center; align-items: center; gap: 8px; margin-top: 20px;
+    background: var(--ink); color: var(--btn-ink); border: 0; font: inherit; font-weight: 700;
+    font-size: 13.5px; letter-spacing: .05em; text-transform: uppercase; padding: 14px; border-radius: 4px; cursor: pointer;
+  }
+  #sheet .go:disabled { opacity: .35; cursor: default; }
+  #sheet .go svg { width: 15px; height: 15px; fill: currentColor; }
 </style>
 
 <header>
@@ -230,6 +261,9 @@
 
   <p class="demo-note" id="demo-note">Version démo — salons et avis fictifs, à titre d'illustration.<br>Les vraies photos et adresses arrivent avec les salons partenaires.</p>
 </div>
+
+<div id="sheet-back"></div>
+<div id="sheet" role="dialog" aria-modal="true"></div>
 
 <script>
   const WA_NUMBER = "15556738482"; // Meta TEST number (2026-08-27) — swap for the real +212 number at go-live
@@ -289,10 +323,92 @@
     if (n.length === 2) return n[0] + " & " + n[1];
     return n[0] + ", " + n[1] + " +" + (n.length - 2);
   }
-  function waLink(d) {
-    const msg = `Bonjour ! Je veux réserver « ${d.service} » chez ${d.salon} (${fmtH(d.from)}–${fmtH(d.to)}) · Réf EVA-${d.code}`;
-    return `https://wa.me/${WA_NUMBER}?text=${encodeURIComponent(msg)}`;
+  // ---------- booking sheet (day + slot + prénom → pre-filled WhatsApp) ----------
+  let sheetDeal = null, selDayOffset = null, selTime = null;
+
+  function dayOptions(d) {
+    const now = new Date(), h = now.getHours() + now.getMinutes() / 60, out = [];
+    for (let o = 0; o < 7; o++) {
+      const dt = new Date(now.getFullYear(), now.getMonth(), now.getDate() + o);
+      if (!d.days.includes(evaDay(dt))) continue;
+      if (o === 0 && h >= d.to - 0.5) continue;              // today's last slot already gone
+      out.push({ o, dt });
+    }
+    return out;
   }
+  function slotOptions(d, o) {
+    const now = new Date(), h = now.getHours() + now.getMinutes() / 60, out = [];
+    for (let t = d.from; t <= d.to - 0.5 + 1e-9; t += 0.5) {
+      if (o === 0 && t < h + 0.25) continue;                  // no booking slots already past
+      out.push(t);
+    }
+    return out;
+  }
+  function dayName(opt) {
+    if (opt.o === 0) return "Aujourd'hui";
+    if (opt.o === 1) return "Demain";
+    return opt.dt.toLocaleDateString("fr-FR", { weekday: "short", day: "numeric" });
+  }
+
+  function openSheet(d) {
+    sheetDeal = d; selTime = null;
+    selDayOffset = dayOptions(d)[0]?.o ?? null;
+    document.getElementById("sheet-back").style.display = "block";
+    document.getElementById("sheet").style.display = "block";
+    renderSheet();
+  }
+  function closeSheet() {
+    sheetDeal = null;
+    document.getElementById("sheet-back").style.display = "none";
+    document.getElementById("sheet").style.display = "none";
+  }
+
+  function renderSheet() {
+    const d = sheetDeal; if (!d) return;
+    const keepName = document.getElementById("bk-name")?.value ?? "";
+    const days = dayOptions(d);
+    const slots = selDayOffset === null ? [] : slotOptions(d, selDayOffset);
+    if (selTime !== null && !slots.includes(selTime)) selTime = null;
+    document.getElementById("sheet").innerHTML =
+      '<div class="sheet-head"><div><h3>' + esc(d.service) + '</h3>' +
+      '<div class="sub2">' + esc(d.salon) + (d.quartier ? ' · ' + esc(d.quartier) : '') +
+      ' · <s>' + d.old + ' DH</s> <strong>' + d.neu + ' DH</strong></div></div>' +
+      '<button class="x" id="bk-close" aria-label="Fermer">×</button></div>' +
+      '<div class="lbl">Quel jour ?</div><div class="optrow">' +
+      days.map(x => '<button class="opt" data-day="' + x.o + '" aria-pressed="' + (x.o === selDayOffset) + '">' + dayName(x) + '</button>').join('') +
+      '</div>' +
+      '<div class="lbl">À quelle heure ?</div><div class="optrow">' +
+      (slots.length ? slots.map(t => '<button class="opt" data-slot="' + t + '" aria-pressed="' + (t === selTime) + '">' + fmtH(t) + '</button>').join('')
+        : '<span class="sub2">Plus de créneau ce jour-là — choisissez un autre jour.</span>') +
+      '</div>' +
+      '<div class="lbl">Votre prénom <span style="text-transform:none;letter-spacing:0">(pour vous accueillir au salon)</span></div>' +
+      '<input type="text" id="bk-name" autocomplete="given-name" placeholder="Ex : Salma" value="' + esc(keepName) + '">' +
+      '<button class="go" id="bk-go"' + (selTime === null ? ' disabled' : '') + '>' + WA_ICON + 'Réserver sur WhatsApp</button>';
+    document.getElementById("bk-close").onclick = closeSheet;
+    document.querySelectorAll("#sheet [data-day]").forEach(b => b.onclick = () => { selDayOffset = +b.dataset.day; renderSheet(); });
+    document.querySelectorAll("#sheet [data-slot]").forEach(b => b.onclick = () => { selTime = +b.dataset.slot; renderSheet(); });
+    document.getElementById("bk-go").onclick = () => {
+      const opt = days.find(x => x.o === selDayOffset); if (!opt || selTime === null) return;
+      const nm = document.getElementById("bk-name").value.trim();
+      const dd = String(opt.dt.getDate()).padStart(2, "0"), mm = String(opt.dt.getMonth() + 1).padStart(2, "0");
+      const human = opt.o === 0 ? "aujourd'hui" : opt.o === 1 ? "demain" :
+        opt.dt.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" });
+      const lines = [
+        `Bonjour ! Je veux réserver « ${d.service} » chez ${d.salon} 🌸`,
+        `${human.charAt(0).toUpperCase() + human.slice(1)} à ${fmtH(selTime)}`,
+        nm ? `Prénom : ${nm}` : null,
+        `Réf : EVA-${d.code} · ${dd}/${mm} · ${fmtH(selTime)}`,
+      ].filter(Boolean);
+      window.open(`https://wa.me/${WA_NUMBER}?text=${encodeURIComponent(lines.join("\n"))}`, "_blank", "noopener");
+      closeSheet();
+    };
+  }
+
+  document.getElementById("sheet-back").addEventListener("click", closeSheet);
+  document.addEventListener("click", e => {
+    const b = e.target.closest("[data-book]"); if (!b) return;
+    const d = DEALS.find(x => x.id === b.dataset.book); if (d) openSheet(d);
+  });
 
   const WA_ICON = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2Zm5.5 14.1c-.2.7-1.3 1.3-1.9 1.4-.5.1-1.1.2-3.4-.7-2.8-1.2-4.7-4-4.8-4.2-.1-.2-1.2-1.6-1.2-3s.7-2.1 1-2.4c.2-.3.5-.3.7-.3h.5c.2 0 .4 0 .6.5l.9 2.1c.1.2.1.4 0 .6l-.4.6-.5.5c-.2.2-.3.4-.1.7.2.3.9 1.5 2 2.4 1.4 1.2 2.5 1.6 2.9 1.7.3.2.5.1.7-.1l1-1.2c.2-.3.4-.2.7-.1l2 1c.3.1.5.2.6.4 0 .1 0 .7-.2 1.1Z"/></svg>`;
 
@@ -328,7 +444,7 @@
         </div>
         <div class="deal-foot">
           <span class="countdown ${cls}">${time}</span>
-          <a class="wa-btn" href="${waLink(d)}" target="_blank" rel="noopener">${WA_ICON}Réserver</a>
+          <button class="wa-btn" data-book="${d.id}" style="border:0;cursor:pointer;font:inherit;font-weight:700;font-size:12.5px">${WA_ICON}Réserver</button>
         </div>
       </div>
     </article>`;
