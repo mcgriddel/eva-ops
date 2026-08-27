@@ -188,9 +188,9 @@ function pingStatus(ping){
 const relayButtons = b =>
   '<div class="row" style="justify-content:flex-start;margin-top:8px">' +
     '<button class="act ghost" data-a="confirm" data-id="' + b.id + '">Salon says yes → confirm</button>' +
-    '<button class="act ghost" data-a="propose_open" data-id="' + b.id + '">Yes, but…</button>' +
-    '<button class="act ghost" data-a="cancel" data-id="' + b.id + '">No → refuse</button>' +
-    '<button class="link" data-a="cancel_client" data-id="' + b.id + '" data-ref="' + esc(b.ref) + '">client cancelled?</button></div>';
+    '<button class="act ghost" data-a="propose_open" data-id="' + b.id + '">Salon says yes, but…</button>' +
+    '<button class="act ghost" data-a="cancel" data-id="' + b.id + '">Salon says no → refuse</button>' +
+    '<button class="link" data-a="cancel_client" data-id="' + b.id + '" data-ref="' + esc(b.ref) + '">client cancelled? → close it + tell her « C\'est annulé ✔ »</button></div>';
 function proposeEditor(b){
   return '<div style="font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--soft);margin:8px 0 6px">Salon says yes, but… what can it offer?</div>' +
     '<div class="row" style="justify-content:flex-start">' +
@@ -282,7 +282,7 @@ async function bookingsView(){
       act = '<div class="row" style="justify-content:flex-start;margin-top:8px"><button class="act ghost" data-a="resolve" data-id="' + b.id + '">Seen, OK ✓</button></div>';
     }
     html += '<div class="card case' + (hot ? ' hot' : '') + '">' + bookingHead(b) +
-      '<div style="margin-top:8px;font-size:13.5px">' + why + '</div>' + act + timeline(b, tl(b)) + '</div>';
+      '<div style="margin-top:8px;font-size:13.5px"><span style="font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--soft);margin-right:6px">Status</span>' + why + '</div>' + act + timeline(b, tl(b)) + '</div>';
   }
 
   // ② TODAY — the day sheet, grouped by salon: redemption + attestation worklist
