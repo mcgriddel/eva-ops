@@ -223,23 +223,24 @@ async function bookingsView(){
   const lastSalonMsg = b => tl(b).filter(m => m.party === 'salon' && m.direction === 'in').pop();
 
   // — classify every booking into exactly one of three piles —
-  const cases = [], inflight = [], finished = [];
+  const cases = [], upcoming = [], finished = [];
   for(const b of (bks || [])){
     const pending = b.state === 'pending_salon' || b.state === 'received';
     const liveConf = ['confirmed','reminded'].includes(b.state);
-    if(b.needs_review) cases.push({ b, type: b.review_reason || 'review' });
+    if(b.needs_review) cases.push({ b, type: b.review_reason || 'review', urgent: true });
     else if(pending){
-      if(slotPassed(b)) cases.push({ b, type:'slot_passed' });
-      else if(!b.salon_pinged_at) cases.push({ b, type:'no_ping' });
-      else if(pingOf(b)?.wa_error) cases.push({ b, type:'ping_failed' });
-      else if(ageMin(b) > 15) cases.push({ b, type:'sla' });
-      else inflight.push(b);
+      // every open booking is a full card up top — nudge whenever, not when a timer says so
+      if(slotPassed(b)) cases.push({ b, type:'slot_passed', urgent: true });
+      else if(!b.salon_pinged_at) cases.push({ b, type:'no_ping', urgent: true });
+      else if(pingOf(b)?.wa_error) cases.push({ b, type:'ping_failed', urgent: true });
+      else cases.push({ b, type:'pending', urgent: ageMin(b) > 15 });
     }
-    else if(liveConf && slotPassed(b)) cases.push({ b, type:'attest' });   // « did she come? » is work
-    else if(liveConf) inflight.push(b);
+    else if(liveConf && slotPassed(b)) cases.push({ b, type:'attest', urgent: true });   // « did she come? » is work
+    else if(liveConf) upcoming.push(b);
     else finished.push(b);
   }
-  document.getElementById('bookBadge').innerHTML = cases.length ? '<span class="badge">' + cases.length + '</span>' : '';
+  const urgentCount = cases.filter(c => c.urgent).length;
+  document.getElementById('bookBadge').innerHTML = urgentCount ? '<span class="badge">' + urgentCount + '</span>' : '';
 
   // ————— ARCHIVE: its own page, search + full timelines —————
   if(archiveMode){
@@ -261,10 +262,10 @@ async function bookingsView(){
 
   let html = '';
 
-  // ① NEEDS YOU — every card that asks something of you, nothing else does.
-  html += '<div class="sect"><h2>Needs you</h2><span class="muted">' + (cases.length ? cases.length + ' case' + (cases.length > 1 ? 's' : '') : '') + '</span></div>';
-  if(!cases.length) html += '<div class="zen">Nothing needs you — the machine is running itself 🌸</div>';
-  for(const { b, type } of cases){
+  // ① OPEN — every live booking is a full card with its actions; nudge whenever you like.
+  html += '<div class="sect"><h2>Open</h2><span class="muted">' + (cases.length ? cases.length + ' booking' + (cases.length > 1 ? 's' : '') + ' live' : '') + '</span></div>';
+  if(!cases.length) html += '<div class="zen">Nothing open — the machine is running itself 🌸</div>';
+  for(const { b, type, urgent } of cases){
     const hot = type === 'slot_passed' || type === 'ping_failed' || type === 'checkin_conflict';
     let why = '', act = '';
     if(type === 'salon_reply'){
@@ -299,8 +300,11 @@ async function bookingsView(){
     } else if(type === 'ping_failed'){
       why = 'The WhatsApp ping to the salon <b>failed</b> — likely no open session yet (they must have messaged Eva in the last 24h). <b>Call them</b>, then press their answer:';
       act = proposeOpen[b.id] ? proposeEditor(b) : relayButtons(b);
-    } else if(type === 'sla'){
-      why = '⏳ Salon silent for <b>' + ageLabel(ageMin(b)) + '</b> (' + pingStatus(pingOf(b)) + '). At 45 min the machine apologizes to the client on its own. Nudge or call the salon, or answer for them:';
+    } else if(type === 'pending'){
+      const m = ageMin(b);
+      why = m > 15
+        ? '⏳ Salon silent for <b>' + ageLabel(m) + '</b> (' + pingStatus(pingOf(b)) + '). At 45 min the machine apologizes to the client on its own. Nudge or call the salon, or answer for them:'
+        : '⏳ Waiting on the salon\'s tap — ' + ageLabel(m) + ' · ' + pingStatus(pingOf(b)) + '. Their tap finishes it on its own — or nudge them / answer for them if you\'re quicker:';
       act = proposeOpen[b.id] ? proposeEditor(b) : relayButtons(b);
     } else if(type === 'slot_passed'){
       why = '<span style="color:var(--bad);font-weight:700">⚠ The requested slot has passed</span> with no salon answer. The sweep will expire it and apologize shortly — or act now:';
@@ -309,27 +313,20 @@ async function bookingsView(){
       why = 'Flagged for review.';
       act = '<div class="row" style="justify-content:flex-start;margin-top:8px"><button class="act ghost" data-a="resolve" data-id="' + b.id + '">Seen, OK ✓</button></div>';
     }
-    html += '<div class="card case' + (hot ? ' hot' : '') + '">' + bookingHead(b) +
+    html += '<div class="card' + (urgent ? (hot ? ' case hot' : ' case') : '') + '">' + bookingHead(b) +
       statLine('Status', why) + act + timeline(b, tl(b)) + '</div>';
   }
 
-  // ② IN FLIGHT — alive, machine-driven, nothing to press. Same cards, no buttons.
-  inflight.sort((a, c) => {
-    const ap = a.state === 'pending_salon' || a.state === 'received';
-    const cp = c.state === 'pending_salon' || c.state === 'received';
-    if(ap !== cp) return ap ? -1 : 1;
-    return String(a.slot_date || '').localeCompare(String(c.slot_date || '')) || String(a.slot_time || '').localeCompare(String(c.slot_time || ''));
-  });
-  html += '<div class="sect"><h2>In flight</h2><span class="muted">the machine is driving these — nothing to do</span></div>';
-  if(!inflight.length) html += '<div class="zen muted">Nothing in flight.</div>';
-  for(const b of inflight){
-    const pending = b.state === 'pending_salon' || b.state === 'received';
-    const status = pending
-      ? '⏳ Waiting on the salon\'s tap — ' + ageLabel(ageMin(b)) + ' · ' + pingStatus(pingOf(b)) + '. Their tap finishes it; silent past 15 min → it moves up to Needs you.'
-      : '✅ Confirmed for <b>' + dayWord(b.slot_date) + (b.slot_time ? ' ' + hh(b.slot_time) : '') + '</b>.' +
+  // ② CONFIRMED, UPCOMING — done deals waiting for the visit; only shown when there are any.
+  if(upcoming.length){
+    upcoming.sort((a, c) => String(a.slot_date || '').localeCompare(String(c.slot_date || '')) || String(a.slot_time || '').localeCompare(String(c.slot_time || '')));
+    html += '<div class="sect"><h2>Confirmed — upcoming</h2><span class="muted">nothing to do until the visit</span></div>';
+    for(const b of upcoming){
+      const status = '✅ Confirmed for <b>' + dayWord(b.slot_date) + (b.slot_time ? ' ' + hh(b.slot_time) : '') + '</b>.' +
         (b.client_checkin === 'served' ? ' Client checked in ✓' : '') +
         ' <button class="link" data-a="cancel_confirmed" data-id="' + b.id + '">salon cancels (imprévu)?</button>';
-    html += '<div class="card">' + bookingHead(b) + statLine('Status', status) + timeline(b, tl(b)) + '</div>';
+      html += '<div class="card">' + bookingHead(b) + statLine('Status', status) + timeline(b, tl(b)) + '</div>';
+    }
   }
 
   // ③ FINISHED — recent outcomes; everything older lives in the Archive.
