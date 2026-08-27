@@ -333,18 +333,18 @@
     return n[0] + ", " + n[1] + " +" + (n.length - 2);
   }
   // ---------- booking sheet (day + slot + practitioner + prénom → pre-filled WhatsApp) ----------
-  let sheetDeal = null, selDayOffset = null, selTime = null, selPract = null;
+  let sheetDeal = null, selDayOffset = null, selTime = null, selPract = null, selParty = 1;
 
   const isoOf = dt => dt.getFullYear() + "-" + String(dt.getMonth() + 1).padStart(2, "0") + "-" + String(dt.getDate()).padStart(2, "0");
   const busyAt = (d, dISO, t) => (BUSY[d.id] || []).filter(b => b.d === dISO && b.t === t);
-  const dayFull = (d, dISO) => (BUSY[d.id] || []).filter(b => b.d === dISO).length >= d.cap;
-  // a slot is gone when: a no-preference booking holds it, the chosen practitioner has it,
-  // or every one of the deal's practitioners is taken on it
+  const dayLoad = (d, dISO) => (BUSY[d.id] || []).filter(b => b.d === dISO).reduce((a, b) => a + b.n, 0);
+  const dayLeft = (d, dISO) => Math.max(0, d.cap - dayLoad(d, dISO));
+  // slot capacity mirrors the DB rule: bookings per slot <= number of practitioners (1 if none);
+  // a chosen practitioner must also be free on it
   function slotTaken(d, dISO, t) {
     const at = busyAt(d, dISO, t);
-    if (at.some(b => !b.p)) return true;
+    if (at.length >= Math.max(1, d.staff.length)) return true;
     if (selPract && at.some(b => b.p === selPract)) return true;
-    if (d.staff.length && at.filter(b => b.p).length >= d.staff.length) return true;
     return false;
   }
 
@@ -353,7 +353,7 @@
     for (let o = 0; o < 7; o++) {
       const dt = new Date(now.getFullYear(), now.getMonth(), now.getDate() + o);
       if (!d.days.includes(evaDay(dt))) continue;
-      if (o === 0 && h >= d.to - 0.5) continue;              // today's last slot already gone
+      if (o === 0 && h + 0.75 > d.to - 0.5) continue;        // today's last bookable slot already gone
       out.push({ o, dt });
     }
     return out;
@@ -361,7 +361,7 @@
   function slotOptions(d, o) {
     const now = new Date(), h = now.getHours() + now.getMinutes() / 60, out = [];
     for (let t = d.from; t <= d.to - 0.5 + 1e-9; t += 0.5) {
-      if (o === 0 && t < h + 0.25) continue;                  // no booking slots already past
+      if (o === 0 && t < h + 0.75) continue;                  // 45-min lead: approval needs a human round-trip
       out.push(t);
     }
     return out;
@@ -373,7 +373,7 @@
   }
 
   function openSheet(d) {
-    sheetDeal = d; selTime = null; selPract = null;
+    sheetDeal = d; selTime = null; selPract = null; selParty = 1;
     selDayOffset = dayOptions(d)[0]?.o ?? null;
     document.getElementById("sheet-back").style.display = "block";
     document.getElementById("sheet").style.display = "block";
@@ -405,7 +405,7 @@
       '<button class="x" id="bk-close" aria-label="Fermer">×</button></div>' +
       '<div class="lbl">Quel jour ?</div><div class="optrow">' +
       days.map(x => {
-        const full = dayFull(d, isoOf(x.dt));
+        const full = dayLeft(d, isoOf(x.dt)) === 0;
         return '<button class="opt" data-day="' + x.o + '" aria-pressed="' + (x.o === selDayOffset) + '"' + (full ? ' disabled' : '') + '>' + dayName(x) + (full ? ' · complet' : '') + '</button>';
       }).join('') +
       '</div>' +
@@ -421,6 +421,11 @@
           const busy = practBusy(p);
           return '<button class="opt" data-pract="' + p.id + '" aria-pressed="' + (p.id === selPract) + '"' + (busy ? ' disabled' : '') + '>' + practFace(p) + esc(p.first_name) + (busy ? ' · prise' : '') + '</button>';
         }).join('') + '</div>' : '') +
+      '<div class="lbl">Pour combien de personnes ?</div><div class="optrow">' +
+      [1, 2, 3].map(n => {
+        const over = dISO !== null && n > dayLeft(d, dISO);
+        return '<button class="opt" data-party="' + n + '" aria-pressed="' + (n === selParty) + '"' + (over ? ' disabled' : '') + '>' + (n === 1 ? '1 personne' : n + ' personnes') + '</button>';
+      }).join('') + '</div>' +
       '<div class="lbl">Votre prénom <span style="text-transform:none;letter-spacing:0">(pour vous accueillir au salon)</span></div>' +
       '<input type="text" id="bk-name" autocomplete="given-name" placeholder="Ex : Salma" value="' + esc(keepName) + '">' +
       '<button class="go" id="bk-go"' + (selTime === null ? ' disabled' : '') + '>' + WA_ICON + 'Réserver sur WhatsApp</button>';
@@ -428,6 +433,7 @@
     document.querySelectorAll("#sheet [data-day]").forEach(b => b.onclick = () => { selDayOffset = +b.dataset.day; selTime = null; renderSheet(); });
     document.querySelectorAll("#sheet [data-slot]").forEach(b => b.onclick = () => { selTime = +b.dataset.slot; renderSheet(); });
     document.querySelectorAll("#sheet [data-pract]").forEach(b => b.onclick = () => { selPract = b.dataset.pract || null; renderSheet(); });
+    document.querySelectorAll("#sheet [data-party]").forEach(b => b.onclick = () => { selParty = +b.dataset.party; renderSheet(); });
     document.getElementById("bk-go").onclick = () => {
       if (!opt || selTime === null) return;
       const nm = document.getElementById("bk-name").value.trim();
@@ -439,6 +445,7 @@
         `Bonjour ! Je veux réserver « ${d.service} » chez ${d.salon} 🌸`,
         `${human.charAt(0).toUpperCase() + human.slice(1)} à ${fmtH(selTime)}`,
         pr ? `Avec : ${pr.first_name}` : null,
+        selParty > 1 ? `Personnes : ${selParty}` : null,
         nm ? `Prénom : ${nm}` : null,
         `Réf : EVA-${d.code} · ${dd}/${mm} · ${fmtH(selTime)}`,
       ].filter(Boolean);
@@ -541,7 +548,7 @@
       const rows = await r.json();
       BUSY = {};
       for (const b of (rs.ok ? await rs.json() : [])) {
-        (BUSY[b.deal_id] = BUSY[b.deal_id] || []).push({ d: b.slot_date, t: b.slot_time ? toH(b.slot_time) : null, p: b.practitioner_id });
+        (BUSY[b.deal_id] = BUSY[b.deal_id] || []).push({ d: b.slot_date, t: b.slot_time ? toH(b.slot_time) : null, p: b.practitioner_id, n: b.party_size || 1 });
       }
       DEALS = rows.map(x => ({
         id: x.id, code: x.short_code, service: x.service_name, cat: x.category || "soins",
