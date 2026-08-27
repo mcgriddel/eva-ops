@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:ital,opsz,wght@1,6..96,500;1,6..96,600&family=Albert+Sans:wght@400;500;600;700&display=swap">
 <style>
-  :root { --ivory:#F4F2EE; --paper:#ECE9E2; --ink:#141311; --soft:#454239; --grey:#9B978F; --line:#D6D2C8; --ok:#1F7A4D; --warn:#8A5A00; --bad:#C0392B; }
+  :root { --ivory:#F4F2EE; --paper:#ECE9E2; --ink:#141311; --soft:#454239; --grey:#9B978F; --line:#D6D2C8; --ok:#1F7A4D; --terra:#B0562F; }
   * { margin:0; padding:0; box-sizing:border-box; }
   body { background:var(--ivory); color:var(--ink); font:15px/1.5 'Albert Sans', -apple-system, 'Segoe UI', Roboto, sans-serif; }
   header { display:flex; align-items:baseline; gap:10px; padding:14px 18px; border-bottom:2px solid var(--ink); position:sticky; top:0; background:var(--ivory); z-index:5; }
@@ -15,61 +15,77 @@
   nav { display:flex; gap:6px; margin-left:auto; flex-wrap:wrap; }
   nav button { border:1px solid var(--line); background:var(--paper); padding:8px 14px; border-radius:999px; font-size:13px; font-weight:600; cursor:pointer; }
   nav button.on { background:var(--ink); color:var(--ivory); border-color:var(--ink); }
-  main { max-width:860px; margin:0 auto; padding:16px; }
-  .card { background:#fff; border:1px solid var(--line); border-radius:10px; padding:14px 16px; margin-bottom:10px; }
-  .card.case { border-left:4px solid var(--warn); }
-  .card.case.hot { border-left-color:var(--bad); }
-  .row { display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; }
+  main { max-width:760px; margin:0 auto; padding:16px; }
   .muted { color:var(--grey); font-size:12.5px; }
+  .sect { display:flex; align-items:baseline; gap:8px; margin:24px 0 8px; }
+  .sect:first-child { margin-top:6px; }
+  .sect h2 { margin:0; font-size:13px; text-transform:uppercase; letter-spacing:.09em; font-weight:700; }
+  .sect .muted { font-size:12px; }
+  .sect .tb { margin-left:auto; }
+
+  /* question — the primitive. The only accented element on the page. */
+  .q { background:#fff; border:1px solid var(--line); border-left:3px solid var(--terra); border-radius:10px; padding:14px 16px; margin-bottom:10px; }
+  .q .qt { font-size:15.5px; font-weight:600; line-height:1.4; }
+  .q .qs { color:var(--soft); font-size:13px; margin-top:3px; }
+  .q .qh { color:var(--grey); font-size:12px; margin-top:7px; }
+  .q .qm { color:var(--grey); font-size:12px; margin-top:9px; display:flex; gap:12px; align-items:baseline; }
+  .zen { background:#fff; border:1px solid var(--line); border-radius:10px; padding:16px; color:var(--soft); font-size:14.5px; }
+  .zen b { color:var(--ok); }
+
+  /* verbs — bare, outlined, uniform */
+  .verbs { display:flex; gap:8px; margin-top:11px; flex-wrap:wrap; align-items:center; }
+  .v { display:inline-flex; align-items:center; justify-content:center; border:1.5px solid var(--ink); background:#fff; color:var(--ink); border-radius:9px; padding:9px 18px; font-weight:650; font-size:14px; min-height:40px; cursor:pointer; font-family:inherit; text-decoration:none; transition:background .15s; }
+  .v:hover { background:var(--paper); }
+  .vq { border:0; background:none; color:var(--soft); font-size:13px; font-weight:600; text-decoration:underline; text-underline-offset:3px; cursor:pointer; padding:9px 4px; font-family:inherit; }
+  .tb { border:0; background:none; color:var(--grey); font-size:12px; font-weight:600; text-decoration:underline; text-underline-offset:3px; cursor:pointer; padding:0; font-family:inherit; }
+
+  /* ledger — flat rows, hairline-separated, read-only at rest */
+  .ledger { background:#fff; border:1px solid var(--line); border-radius:10px; overflow:hidden; }
+  .lrow { display:flex; align-items:center; gap:8px; padding:11px 14px; border-top:1px solid var(--line); cursor:pointer; }
+  .lrow:first-child { border-top:0; }
+  .lrow:hover { background:var(--ivory); }
+  .lrow .when { font-variant-numeric:tabular-nums; font-weight:650; white-space:nowrap; }
+  .lrow .whostr { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .lrow .chip { margin-left:auto; color:var(--grey); font-size:12.5px; white-space:nowrap; }
+  .lrow .chip.act { color:var(--soft); font-weight:600; }
+  .lrow .chip .okmk { color:var(--ok); }
+  .ldetail { border-top:1px solid var(--line); background:var(--ivory); padding:12px 14px; cursor:default; }
+  .ldetail .facts { font-size:13.5px; }
+  .ldetail .verbs { margin-top:9px; }
+
+  .tl { border-left:2px solid var(--line); margin:8px 0 2px; padding-left:10px; display:flex; flex-direction:column; gap:3px; }
+  .tl div { color:var(--grey); font-size:12px; }
+  .tl b { color:var(--soft); }
+
+  input, select, textarea { width:100%; padding:10px; border:1px solid var(--line); border-radius:8px; font-size:15px; background:#fff; margin-top:6px; }
+  input:focus, select:focus, textarea:focus { outline:none; border-color:var(--ink); box-shadow:0 0 0 3px rgba(20,19,17,.08); }
+  label { font-size:11.5px; font-weight:700; color:var(--soft); text-transform:uppercase; letter-spacing:.08em; display:block; margin-top:16px; }
+  .card { background:#fff; border:1px solid var(--line); border-radius:10px; padding:14px 16px; margin-bottom:10px; }
+  .row { display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; }
   .pill { display:inline-block; padding:2px 10px; border-radius:999px; font-size:11.5px; font-weight:700; border:1px solid var(--line); background:var(--paper); }
-  .pill.pending { background:#FFF3D6; border-color:#E8CF96; color:var(--warn); }
-  .pill.confirmed { background:#E0F0E7; border-color:#B5D9C4; color:var(--ok); }
   .pill.live { background:#E0F0E7; color:var(--ok); }
   button.act { border:1px solid var(--ink); background:var(--ink); color:var(--ivory); padding:9px 14px; border-radius:8px; font-weight:600; cursor:pointer; font-size:13.5px; min-height:40px; }
   button.ghost { background:transparent; color:var(--ink); border:1.5px solid var(--ink); }
-  button.link { border:0; background:none; color:var(--grey); font-size:12px; text-decoration:underline; cursor:pointer; padding:0; }
-  input, select, textarea { width:100%; padding:10px; border:1px solid var(--line); border-radius:8px; font-size:15px; background:#fff; margin-top:6px; }
-  label { font-size:11.5px; font-weight:700; color:var(--soft); text-transform:uppercase; letter-spacing:.08em; display:block; margin-top:16px; }
   form .act { margin-top:14px; }
   #login { max-width:380px; margin:10vh auto; padding:26px 26px 24px; }
   #login h2 { margin:0 0 4px; font-size:20px; }
   .btnrow { display:flex; gap:10px; margin-top:22px; }
   .btnrow .act { flex:1; }
-  input:focus, select:focus, textarea:focus { outline:none; border-color:var(--ink); box-shadow:0 0 0 3px rgba(20,19,17,.08); }
-  button:focus-visible { outline:2px solid var(--ink); outline-offset:2px; }
-  button.act { transition:opacity .15s; }
-  button.act:hover { opacity:.85; }
-  nav button:hover { border-color:var(--ink); }
   .thread { max-height:50vh; overflow-y:auto; display:flex; flex-direction:column; gap:6px; padding:8px 0; }
   .msg { max-width:80%; padding:8px 12px; border-radius:12px; font-size:14px; }
   .msg.in { background:#fff; border:1px solid var(--line); align-self:flex-start; }
   .msg.out { background:var(--ink); color:var(--ivory); align-self:flex-end; }
-  .badge { background:#C0392B; color:#fff; border-radius:999px; font-size:11px; padding:1px 8px; font-weight:700; }
+  .badge { background:var(--terra); color:#fff; border-radius:999px; font-size:11px; padding:1px 8px; font-weight:700; }
   h2 { font-size:16px; margin:18px 0 10px; }
-  .sect { display:flex; align-items:baseline; gap:8px; margin:26px 0 10px; border-bottom:1px solid var(--line); padding-bottom:6px; }
-  .sect:first-child { margin-top:4px; }
-  .sect h2 { margin:0; font-size:15px; text-transform:uppercase; letter-spacing:.08em; }
-  .sect .muted { font-size:12px; }
-  .sect .link { margin-left:auto; }
-  .zen { text-align:center; color:var(--grey); padding:18px 0 6px; font-size:14px; }
-  .btns { display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; align-items:center; }
-  button.b { display:inline-flex; align-items:center; justify-content:center; border-radius:9px; padding:9px 16px; font-weight:650; font-size:13.5px; cursor:pointer; min-height:40px; background:#fff; border:1.5px solid var(--line); color:var(--ink); font-family:inherit; transition:border-color .15s, background .15s, opacity .15s; }
-  button.b.yes { background:var(--ink); border-color:var(--ink); color:var(--ivory); }
-  button.b.yes:hover { opacity:.85; }
-  button.b.no { border-color:var(--line); color:var(--bad); background:#fff; }
-  button.b.no:hover { border-color:var(--bad); }
-  button.b.mid { border-color:var(--ink); }
-  button.b.mid:hover { background:var(--paper); }
-  .stat { margin-top:8px; font-size:13.5px; }
-  .stat .k { display:inline-block; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.07em; color:var(--soft); background:var(--paper); border:1px solid var(--line); border-radius:5px; padding:1px 7px; margin-right:7px; vertical-align:1px; }
-  .ref { color:var(--grey); font-size:12.5px; font-weight:400; }
   .toast { position:fixed; bottom:16px; left:50%; transform:translateX(-50%); background:var(--ink); color:var(--ivory); padding:10px 18px; border-radius:999px; font-size:13.5px; opacity:0; transition:opacity .3s; pointer-events:none; z-index:9; }
+  .toast.undoable { pointer-events:auto; display:flex; gap:14px; align-items:center; }
+  .toast button { border:0; background:none; color:var(--ivory); font-weight:700; text-decoration:underline; cursor:pointer; font-size:13.5px; font-family:inherit; }
 </style>
 </head>
 <body>
 <header><h1>eva</h1><span class="muted">console</span>
   <nav id="nav" style="display:none">
-    <button data-t="bookings">Bookings <span id="bookBadge"></span></button>
+    <button data-t="bookings">Today <span id="bookBadge"></span></button>
     <button data-t="inbox">Inbox <span id="inboxBadge"></span></button>
     <button data-t="deals">Deals</button>
     <button data-t="salons">Salons</button>
@@ -84,13 +100,24 @@ const sb = createClient('https://iapwfxbfwlnibyucetca.supabase.co', 'sb_publisha
 const FN = 'https://iapwfxbfwlnibyucetca.supabase.co' + '/functions/v1/ops-send';
 const app = document.getElementById('app');
 let tab = 'bookings', session = null, timer = null, openPhone = null, historyQuery = '', archiveMode = false;
-const proposeOpen = {}; // booking id → true while the "yes, but…" editor is open
-const manualOpen = {};  // booking id → true while collapsed fallback actions are expanded
-const noShowOpen = {};  // booking id → true while the no-show reason input is open
-const tlOpen = {};      // booking id → true while the conversation timeline is expanded
+const proposeOpen = {}; // booking id → the "suggest a change" editor is open
+const noShowOpen = {};  // booking id → the no-show reason input is open
+const expandOpen = {};  // booking id → ledger row detail is open
+const tlOpen = {};      // booking id → conversation shown inside question/detail
+let undoTimer = null;
 
 function esc(s){ return String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
-function toast(m){ const t = document.getElementById('toast'); t.textContent = m; t.style.opacity = 1; setTimeout(() => t.style.opacity = 0, 2600); }
+function toast(m){ const t = document.getElementById('toast'); t.className = 'toast'; t.textContent = m; t.style.opacity = 1; setTimeout(() => t.style.opacity = 0, 2600); }
+function undoToast(m, prev, id){
+  const t = document.getElementById('toast');
+  t.className = 'toast undoable'; t.innerHTML = esc(m) + ' <button id="undoBtn">Undo</button>'; t.style.opacity = 1;
+  clearTimeout(undoTimer);
+  document.getElementById('undoBtn').onclick = async () => {
+    await sb.from('bookings').update({ ...prev, updated_at: new Date().toISOString() }).eq('id', id);
+    t.style.opacity = 0; refresh();
+  };
+  undoTimer = setTimeout(() => { t.style.opacity = 0; }, 6000);
+}
 async function ops(body){
   const r = await fetch(FN, { method:'POST', headers:{ 'Content-Type':'application/json', 'apikey':'sb_publishable_3XDoudJTZYbZNPjajzsccg_pTqf0F-U', 'Authorization':'Bearer ' + session.access_token }, body: JSON.stringify(body) });
   const j = await r.json().catch(() => ({}));
@@ -152,80 +179,155 @@ function threadView(phone, msgs){
   };
 }
 
-// ————— BOOKINGS: Needs you → In flight → Finished (Archive is its own page) —————
+// ————— TODAY: the machine asks questions; everything else is a quiet ledger —————
 
-const TODAY = () => new Date().toLocaleDateString('en-CA', { timeZone:'Africa/Casablanca' });
+const TZ = 'Africa/Casablanca';
+const TODAY = () => new Date().toLocaleDateString('en-CA', { timeZone: TZ });
+const TOMORROW = () => new Date(Date.now() + 86400000).toLocaleDateString('en-CA', { timeZone: TZ });
 function slotPassed(b){
   if(!b.slot_date) return false;
   return new Date(b.slot_date + 'T' + (b.slot_time || '23:59')) < new Date();
 }
-const hhmmT = ts => new Date(ts).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
 const hh = t => (t || '').slice(0,5).replace(':','h');
-const ageMin = b => Math.round((Date.now() - new Date(b.created_at)) / 60000);
-const ageLabel = m => m >= 60 ? Math.floor(m/60) + 'h' + String(m%60).padStart(2,'0') : m + ' min';
-const dayWord = d => {
+const hhmmT = ts => new Date(ts).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
+const ageMin = ts => Math.round((Date.now() - new Date(ts)) / 60000);
+const ageLabel = m => m >= 60 ? Math.floor(m/60) + 'h' + String(m%60).padStart(2,'0') : m + 'm';
+function dayWord(d){
   if(!d) return '';
-  if(d === TODAY()) return 'today';
-  if(d === new Date(Date.now() + 86400000).toLocaleDateString('en-CA', { timeZone:'Africa/Casablanca' })) return 'tomorrow';
-  return new Date(d + 'T12:00:00').toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short' });
-};
-
+  if(d === TODAY()) return '';
+  if(d === TOMORROW()) return 'tomorrow ';
+  return new Date(d + 'T12:00:00').toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short' }) + ' ';
+}
+const whenStr = b => dayWord(b.slot_date) + (b.slot_time ? hh(b.slot_time) : '');
 const teamStr = b => (b.notes || '').startsWith('Avec : ') ? ' ' + esc(b.notes.replace('Avec : ', 'avec ')) : (b.practitioners?.first_name ? ' avec ' + esc(b.practitioners.first_name) : '');
+const first = s => esc((s || 'La cliente').split(' ')[0]);
+
+function ticksStr(ping){
+  if(!ping) return '';
+  if(ping.wa_error) return 'ping failed';
+  if(ping.wa_status === 'read') return 'seen ✓✓';
+  if(ping.wa_status === 'delivered') return 'delivered ✓✓';
+  if(ping.wa_status === 'sent') return 'sent ✓';
+  return '';
+}
+
+// the closed status vocabulary — one chip per state, never a sentence
+function chip(b){
+  const pend = b.state === 'pending_salon' || b.state === 'received';
+  if(pend) return { t: 'Waiting for salon · ' + ageLabel(ageMin(b.created_at)), act: ageMin(b.created_at) > 15 };
+  if(b.state === 'confirmed' || b.state === 'reminded') return { t: 'Confirmed', act: false };
+  if(b.state === 'showed') return { t: '<span class="okmk">Came ✓</span>', act: false, html: true };
+  if(b.state === 'no_show') return { t: 'No-show', act: false };
+  if(b.state === 'cancelled') return { t: 'Cancelled', act: false };
+  if(b.state === 'expired') return { t: 'Expired', act: false };
+  return { t: esc(b.state), act: false };
+}
+
+// the primitive: a machine-generated question in plain words, or null
+function questionOf(b, helpers){
+  const { pingOf, lastSalonMsg } = helpers;
+  const salon = esc(b.salons?.name || 'The salon');
+  const client = first(b.customer_name);
+  const svc = esc(b.deals?.service_name || '');
+  const when = whenStr(b) || 'today';
+  const pend = b.state === 'pending_salon' || b.state === 'received';
+
+  if(b.needs_review){
+    if(b.review_reason === 'salon_reply'){
+      const m = lastSalonMsg(b);
+      return { at: b.salon_reply_at || b.updated_at, text: salon + ' answered about ' + client + '’s ' + svc.toLowerCase() + ' ' + when + '.',
+        sub: m ? '« ' + esc((m.body || '').slice(0, 90)) + ' »' : null,
+        verbs: [mkV('confirm', 'Confirm'), mkV('refuse', 'Refuse'), mkQ('propose_open', 'Suggest a change')],
+        meta: 'their answer, in their words' };
+    }
+    if(b.review_reason === 'no_show_claim'){
+      return { at: b.updated_at, text: salon + ' says ' + client + ' didn’t come. True?',
+        sub: svc + ' · ' + when + ' · ' + (b.price_mad ?? '?') + ' DH',
+        verbs: [mkV('showed', 'She came'), mkV('noshow_open', 'No-show')],
+        helper: 'This decides the fee.' };
+    }
+    if(b.review_reason === 'checkin_conflict'){
+      return { at: b.updated_at, text: salon + ' says came — ' + client + ' says she didn’t. Who’s right?',
+        sub: svc + ' · ' + when,
+        verbs: [mkV('resolve', 'She came'), mkV('noshow_confirm', 'No-show')],
+        helper: 'This decides the fee.' };
+    }
+    if(b.review_reason === 'salon_refused'){
+      return { at: b.updated_at, text: salon + ' refused ' + client + '’s ' + when + ' booking.',
+        sub: 'The client was told and offered another day.',
+        verbs: [mkV('resolve', 'OK')] };
+    }
+    return { at: b.updated_at, text: 'Booking ' + esc(b.ref) + ' needs a look.', verbs: [mkV('resolve', 'OK')] };
+  }
+
+  if(pend){
+    const ping = pingOf(b);
+    const tel = (b.salons?.owner_whatsapp || '').replace(/\D/g, '');
+    const callV = tel ? { tel } : null;
+    if(slotPassed(b)) return { at: b.created_at, text: client + '’s ' + (b.slot_time ? hh(b.slot_time) : '') + ' slot passed — no answer from ' + salon + '.',
+      sub: svc + (b.party_size > 1 ? ' · ' + b.party_size + ' pers.' : ''),
+      verbs: [mkV('confirm', 'Confirm'), mkV('refuse', 'Refuse'), mkQ('propose_open', 'Suggest a change')], call: callV,
+      meta: 'the sweep will expire it soon' };
+    if(!b.salon_pinged_at) return { at: b.created_at, text: salon + ' has no WhatsApp — ask them about ' + client + '’s ' + when + ' ' + svc.toLowerCase() + '.',
+      verbs: [mkV('confirm', 'Confirm'), mkV('refuse', 'Refuse'), mkQ('propose_open', 'Suggest a change')],
+      meta: 'asked you ' + ageLabel(ageMin(b.created_at)) + ' ago' };
+    if(ping?.wa_error) return { at: b.created_at, text: 'Couldn’t reach ' + salon + ' on WhatsApp about ' + client + '’s ' + when + ' booking.',
+      sub: 'Call them, then answer:',
+      verbs: [mkV('confirm', 'Confirm'), mkV('refuse', 'Refuse')], call: callV,
+      meta: 'ping failed' };
+    if(ageMin(b.created_at) > 15) return { at: b.created_at, text: salon + ' hasn’t answered about ' + client + '’s ' + when + ' ' + svc.toLowerCase() + '.',
+      verbs: [mkV('confirm', 'Confirm'), mkV('refuse', 'Refuse'), mkQ('propose_open', 'Suggest a change')], call: callV,
+      meta: 'asked ' + ageLabel(ageMin(b.created_at)) + ' ago' + (ticksStr(ping) ? ' · ' + ticksStr(ping) : '') };
+    return null; // young pending → ledger only, the machine is on it
+  }
+
+  if((b.state === 'confirmed' || b.state === 'reminded') && slotPassed(b)){
+    return { at: b.slot_date + 'T' + (b.slot_time || '23:00'), text: 'Did ' + client + ' come to ' + salon + '?',
+      sub: svc + ' · ' + (b.slot_time ? hh(b.slot_time) : 'today') + ' · ' + (b.price_mad ?? '?') + ' DH',
+      verbs: [mkV('showed', 'Came'), mkV('noshow_open', 'No-show')],
+      helper: 'Fee applies only if came.',
+      meta: b.checkin_sent_at && !b.client_checkin ? 'client was asked too — her tap also settles it' : null };
+  }
+  return null;
+}
+const mkV = (a, label) => ({ a, label, quiet: false });
+const mkQ = (a, label) => ({ a, label, quiet: true });
+
+function verbsHtml(b, verbs, call){
+  let h = '<div class="verbs">';
+  for(const x of verbs){
+    if(x.quiet) h += '<button class="vq" data-a="' + x.a + '" data-id="' + b.id + '">' + x.label + '</button>';
+    else h += '<button class="v" data-a="' + x.a + '" data-id="' + b.id + '" data-ref="' + esc(b.ref) + '">' + x.label + '</button>';
+  }
+  if(call?.tel) h += '<a class="v" href="tel:+' + call.tel + '">Call salon</a>';
+  h += '</div>';
+  if(noShowOpen[b.id]) h += '<div class="verbs"><input data-nsr="' + b.id + '" placeholder="reason (optional)" style="max-width:240px;margin:0"><button class="v" data-a="noshow_confirm" data-id="' + b.id + '">Save no-show</button></div>';
+  return h;
+}
+function proposeEditor(b){
+  return '<div class="verbs" style="align-items:center">' +
+    '<span class="muted">new time</span><input type="time" data-time="' + b.id + '" value="' + esc((b.slot_time || '').slice(0,5)) + '" style="width:112px;margin:0">' +
+    '<span class="muted">people</span><input type="number" min="1" max="6" value="' + (b.party_size || 1) + '" data-party="' + b.id + '" style="width:58px;margin:0">' +
+    '<button class="v" data-a="propose" data-id="' + b.id + '">Send offer</button>' +
+    '<button class="vq" data-a="propose_back" data-id="' + b.id + '">back</button></div>' +
+    '<div class="qh">The client gets the offer on WhatsApp and decides.</div>';
+}
 function whoLabel(b, m){
   let side = m.party;
-  if(!side){ // legacy rows without the party column
+  if(!side){
     const owner = (b.salons?.owner_whatsapp || '').replace(/\D/g, '');
     side = (owner && m.customer_phone === owner && owner !== b.customer_phone) ? 'salon' : 'client';
   }
   const you = m.sent_by === 'ops' ? ' (you)' : '';
   return m.direction === 'in' ? side + ' →' : '→ ' + side + you;
 }
-function timeline(b, tl){
+function timelineHtml(b, tl){
   if(!tl.length) return '';
-  if(!tlOpen[b.id]) return '<div style="margin-top:8px"><button class="link" data-a="tl_open" data-id="' + b.id + '">show conversation (' + tl.length + ')</button></div>';
-  return '<div style="margin-top:8px"><button class="link" data-a="tl_close" data-id="' + b.id + '">hide conversation</button></div>' +
-    '<div style="border-left:2px solid var(--line);margin:6px 0 2px;padding-left:10px;display:flex;flex-direction:column;gap:3px">' +
-    tl.map(m => '<div class="muted" style="font-size:12px"><span style="font-variant-numeric:tabular-nums">' + hhmmT(m.created_at) + '</span>' +
-      ' <b style="color:var(--soft)">' + whoLabel(b, m) + '</b> ' + esc((m.body || '').slice(0, 64)) + ((m.body || '').length > 64 ? '…' : '') + '</div>').join('') + '</div>';
+  if(!tlOpen[b.id]) return '<button class="tb" data-a="tl_open" data-id="' + b.id + '">Conversation (' + tl.length + ')</button>';
+  return '<button class="tb" data-a="tl_close" data-id="' + b.id + '">Hide conversation</button>' +
+    '<div class="tl">' + tl.map(m => '<div><span style="font-variant-numeric:tabular-nums">' + hhmmT(m.created_at) + '</span> <b>' + whoLabel(b, m) + '</b> ' +
+      esc((m.body || '').slice(0, 64)) + ((m.body || '').length > 64 ? '…' : '') + '</div>').join('') + '</div>';
 }
-function pingStatus(ping){
-  if(!ping) return '';
-  if(ping.wa_error) return '<b style="color:var(--bad)">ping failed</b> (' + esc(ping.wa_error.slice(0, 60)) + ')';
-  const s = ping.wa_status;
-  if(s === 'read') return 'ping <b style="color:var(--ok)">✓✓ read</b>' + (ping.wa_status_at ? ' at ' + hhmmT(ping.wa_status_at) : '');
-  if(s === 'delivered') return 'ping ✓✓ delivered' + (ping.wa_status_at ? ' at ' + hhmmT(ping.wa_status_at) : '');
-  if(s === 'sent') return 'ping ✓ sent (one tick — their phone may be off)';
-  return 'ping sent at ' + hhmmT(ping.created_at);
-}
-const relayButtons = b =>
-  '<div class="btns">' +
-    '<button class="b yes" data-a="confirm" data-id="' + b.id + '">Salon says yes → confirm ✓</button>' +
-    '<button class="b mid" data-a="propose_open" data-id="' + b.id + '">Salon says yes, but…</button>' +
-    '<button class="b no" data-a="cancel" data-id="' + b.id + '">Salon says no → refuse ✕</button>' +
-    '<button class="link" data-a="cancel_client" data-id="' + b.id + '" data-ref="' + esc(b.ref) + '">client cancelled? → close it + tell her « C\'est annulé ✔ »</button></div>';
-// buttons demand an answer — show them only when the answer must come from OPS.
-// When the machine is already asking someone (salon tap, client check-in), fold them away.
-function collapsedRelay(b, label){
-  if(proposeOpen[b.id]) return proposeEditor(b);
-  if(manualOpen[b.id]) return relayButtons(b) +
-    '<div style="margin-top:6px"><button class="link" data-a="manual_back" data-id="' + b.id + '">hide ↑</button></div>';
-  return '<div style="margin-top:8px"><button class="link" data-a="manual_open" data-id="' + b.id + '">' + label + '</button></div>';
-}
-function proposeEditor(b){
-  return '<div style="font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--soft);margin:8px 0 6px">Salon says yes, but… what can it offer?</div>' +
-    '<div class="row" style="justify-content:flex-start">' +
-    '<span class="muted">time</span><input type="time" data-time="' + b.id + '" value="' + esc((b.slot_time || '').slice(0,5)) + '" style="width:118px;margin:0">' +
-    '<span class="muted">people</span><input type="number" min="1" max="6" value="' + (b.party_size || 1) + '" data-party="' + b.id + '" style="width:60px;margin:0">' +
-    '<button class="b yes" data-a="propose" data-id="' + b.id + '">Send the offer to the client</button>' +
-    '<button class="b mid" data-a="propose_back" data-id="' + b.id + '">← back</button></div>';
-}
-function bookingHead(b){
-  return '<div class="row"><div><strong>' + esc(b.customer_name || 'Cliente') + '</strong> chez <strong>' + esc(b.salons?.name || '?') + '</strong>' +
-    ' <span class="ref">(' + esc(b.ref) + ')</span></div>' +
-    '<span class="pill ' + (b.state === 'pending_salon' ? 'pending' : ['confirmed','reminded','showed'].includes(b.state) ? 'confirmed' : '') + '">' + esc(b.state === 'pending_salon' ? 'waiting on salon' : b.state) + '</span></div>' +
-    '<div class="muted">' + esc(b.deals?.service_name || '?') + teamStr(b) + ((b.party_size || 1) > 1 ? ' · ' + b.party_size + ' pers.' : '') + ' · ' + dayWord(b.slot_date) + (b.slot_time ? ' ' + hh(b.slot_time) : '') + ' · ' + (b.price_mad ?? '?') + ' DH · +' + esc(b.customer_phone) + '</div>';
-}
-const statLine = (label, html) => '<div class="stat"><span class="k">' + label + ':</span>' + html + '</div>';
 
 async function bookingsView(){
   const { data: bks, error } = await sb.from('bookings')
@@ -233,178 +335,146 @@ async function bookingsView(){
     .order('created_at', { ascending:false }).limit(200);
   if(error){ app.innerHTML = '<p class="muted">' + esc(error.message) + '</p>'; return; }
   const { data: msgs } = await sb.from('wa_messages')
-    .select('booking_id, direction, customer_phone, body, created_at, party, sent_by, msg_type, wa_status, wa_status_at, wa_error')
+    .select('booking_id, direction, customer_phone, body, created_at, party, sent_by, msg_type, wa_status, wa_error')
     .in('booking_id', (bks || []).map(b => b.id)).order('created_at');
   const tlById = {};
   for(const m of (msgs || [])){ (tlById[m.booking_id] = tlById[m.booking_id] || []).push(m); }
   const tl = b => tlById[b.id] || [];
-  const pingOf = b => tl(b).filter(m => m.party === 'salon' && m.direction === 'out' && m.msg_type === 'buttons').pop();
-  const lastSalonMsg = b => tl(b).filter(m => m.party === 'salon' && m.direction === 'in').pop();
+  const helpers = {
+    pingOf: b => tl(b).filter(m => m.party === 'salon' && m.direction === 'out' && m.msg_type === 'buttons').pop(),
+    lastSalonMsg: b => tl(b).filter(m => m.party === 'salon' && m.direction === 'in').pop(),
+  };
+  const today = TODAY();
 
-  // — classify every booking into exactly one of three piles —
-  const cases = [], upcoming = [], finished = [];
+  // questions + ledger membership
+  const questions = [];
   for(const b of (bks || [])){
-    const pending = b.state === 'pending_salon' || b.state === 'received';
-    const liveConf = ['confirmed','reminded'].includes(b.state);
-    if(b.needs_review) cases.push({ b, type: b.review_reason || 'review', urgent: true });
-    else if(pending){
-      // every open booking is a full card up top — nudge whenever, not when a timer says so
-      if(slotPassed(b)) cases.push({ b, type:'slot_passed', urgent: true });
-      else if(!b.salon_pinged_at) cases.push({ b, type:'no_ping', urgent: true });
-      else if(pingOf(b)?.wa_error) cases.push({ b, type:'ping_failed', urgent: true });
-      else cases.push({ b, type:'pending', urgent: ageMin(b) > 15 });
-    }
-    else if(liveConf && slotPassed(b)) cases.push({ b, type:'attest', urgent: (b.slot_date || '') < TODAY() });   // routine same-day; urgent once it rolls over
-    else if(liveConf) upcoming.push(b);
-    else finished.push(b);
+    const qu = questionOf(b, helpers);
+    if(qu) questions.push({ b, qu });
   }
-  const urgentCount = cases.filter(c => c.urgent).length;
-  document.getElementById('bookBadge').innerHTML = urgentCount ? '<span class="badge">' + urgentCount + '</span>' : '';
+  questions.sort((a, c) => String(a.qu.at).localeCompare(String(c.qu.at))); // oldest first
+  const live = ['pending_salon', 'received', 'confirmed', 'reminded'];
+  const rows = (bks || []).filter(b => live.includes(b.state) || b.slot_date === today)
+    .sort((a, c) => String(a.slot_date || '9') .localeCompare(String(c.slot_date || '9')) || String(a.slot_time || '').localeCompare(String(c.slot_time || '')));
+  const archiveCount = (bks || []).length;
+  document.getElementById('bookBadge').innerHTML = questions.length ? '<span class="badge">' + questions.length + '</span>' : '';
 
-  // ————— ARCHIVE: its own page, search + full timelines —————
   if(archiveMode){
-    let html = '<button class="act ghost" data-arch="off">← Back to bookings</button>' +
-      '<div class="sect"><h2>Archive</h2><span class="muted">' + (bks || []).length + ' bookings, newest first</span></div>' +
-      '<input id="hq" placeholder="search ref, name, phone, salon, service…" value="' + esc(historyQuery) + '" style="margin-bottom:10px">';
-    const q = historyQuery.trim().toLowerCase();
-    const shown = (q ? (bks || []).filter(b => [b.ref, b.customer_name, b.customer_phone, b.salons?.name, b.deals?.service_name].some(x => (x || '').toLowerCase().includes(q))) : (bks || []).slice(0, 30));
-    for(const b of shown){
-      html += '<div class="card">' + bookingHead(b) +
-        (b.no_show_reason ? '<div class="muted" style="margin-top:6px">no-show reason: ' + esc(b.no_show_reason) + '</div>' : '') +
-        timeline(b, tl(b)) + '</div>';
-    }
-    if(!q && (bks || []).length > 30) html += '<div class="zen muted">' + ((bks || []).length - 30) + ' more — search to find them.</div>';
-    app.innerHTML = html;
-    wireBookings();
+    let h = '<button class="act ghost" data-arch="off">← Back to today</button>' +
+      '<div class="sect"><h2>Archive</h2><span class="muted">' + archiveCount + ' bookings, newest first</span></div>' +
+      '<input id="hq" placeholder="search name, salon, ref, phone…" value="' + esc(historyQuery) + '" style="margin-bottom:10px">';
+    const qs = historyQuery.trim().toLowerCase();
+    const shown = qs ? (bks || []).filter(b => [b.ref, b.customer_name, b.customer_phone, b.salons?.name, b.deals?.service_name].some(x => (x || '').toLowerCase().includes(qs))) : (bks || []).slice(0, 30);
+    h += '<div class="ledger">' + shown.map(b => ledgerRow(b, tl(b), true)).join('') + '</div>';
+    if(!qs && archiveCount > 30) h += '<p class="muted" style="text-align:center;margin-top:10px">' + (archiveCount - 30) + ' more — search to find them.</p>';
+    app.innerHTML = h;
+    wire();
     return;
   }
 
-  let html = '';
+  let h = '';
 
-  // ① OPEN — every live booking is a full card with its actions; nudge whenever you like.
-  html += '<div class="sect"><h2>Open</h2><span class="muted">' + (cases.length ? cases.length + ' booking' + (cases.length > 1 ? 's' : '') + ' live' : '') + '</span></div>';
-  if(!cases.length) html += '<div class="zen">Nothing open — the machine is running itself 🌸</div>';
-  for(const { b, type, urgent } of cases){
-    const hot = type === 'slot_passed' || type === 'ping_failed' || type === 'checkin_conflict';
-    let why = '', act = '';
-    if(type === 'salon_reply'){
-      const m = lastSalonMsg(b);
-      why = 'The salon answered in their own words' + (m ? ' — <b>« ' + esc((m.body || '').slice(0, 120)) + ' »</b>' : '') + '. Read it, then press their answer:';
-      act = proposeOpen[b.id] ? proposeEditor(b) : relayButtons(b);
-    } else if(type === 'salon_refused'){
-      why = 'The salon <b>refused</b> this booking (two-tap confirmed). The client has been told and offered another day. Anything off about this refusal?';
-      act = '<div class="btns"><button class="b mid" data-a="resolve" data-id="' + b.id + '">Seen, OK ✓</button></div>';
-    } else if(type === 'no_show_claim'){
-      why = 'The salon says the client <b>didn\'t come</b> — that cancels the fee, so it needs your eyes. Their reason should be in the conversation below.';
-      act = '<div class="btns">' +
-        '<button class="b no" data-a="noshow_open" data-id="' + b.id + '">It\'s true, she didn\'t come — no fee ✕</button>' +
-        '<button class="b yes" data-a="showed" data-id="' + b.id + '">She DID come — fee applies ✓</button></div>' +
-        (noShowOpen[b.id] ? '<div class="btns"><input data-nsr="' + b.id + '" placeholder="reason (optional)" style="max-width:260px;margin:0"><button class="b no" data-a="noshow_confirm" data-id="' + b.id + '">Save no-show</button></div>' : '');
-    } else if(type === 'checkin_conflict'){
-      why = 'Conflict: the salon marked <b>« came »</b> but the <b>client says she didn\'t go</b>. Check the conversation, maybe call.';
-      act = '<div class="btns">' +
-        '<button class="b yes" data-a="resolve" data-id="' + b.id + '">Keep « came » — fee stands ✓</button>' +
-        '<button class="b no" data-a="noshow_confirm" data-id="' + b.id + '">Switch to no-show ✕</button></div>';
-    } else if(type === 'attest'){
-      const tail = (b.checkin_sent_at && !b.client_checkin)
-        ? 'I\'ve already asked her on WhatsApp (« vous avez été servie ? », sent ' + hhmmT(b.checkin_sent_at) + ') — her tap settles this on its own. Answer here only if you already know:'
-        : b.client_checkin === 'not_yet'
-        ? 'At check-in she said « pas encore » — give it a moment, or answer if you know:'
-        : 'I couldn\'t ask her on WhatsApp (no open session) — settle it with the salon, or answer if you know:';
-      why = 'The ' + (b.slot_time ? hh(b.slot_time) + ' ' : '') + 'slot has passed — <b>did she come?</b> (« she came » = the fee event). ' + tail;
-      const attestButtons = '<div class="btns">' +
-        '<button class="b yes" data-a="showed" data-id="' + b.id + '">She came → fee applies ✓</button>' +
-        '<button class="b no" data-a="noshow_open" data-id="' + b.id + '">She didn\'t come → no-show…</button>' +
-        '<button class="link" data-a="cancel_confirmed" data-id="' + b.id + '">it never happened — salon cancelled?</button></div>' +
-        (noShowOpen[b.id] ? '<div class="btns"><input data-nsr="' + b.id + '" placeholder="reason (optional)" style="max-width:260px;margin:0"><button class="b no" data-a="noshow_confirm" data-id="' + b.id + '">Save no-show</button></div>' : '');
-      act = (b.checkin_sent_at && !b.client_checkin && !noShowOpen[b.id])
-        ? (manualOpen[b.id]
-            ? attestButtons + '<div style="margin-top:6px"><button class="link" data-a="manual_back" data-id="' + b.id + '">hide ↑</button></div>'
-            : '<div style="margin-top:8px"><button class="link" data-a="manual_open" data-id="' + b.id + '">You already know? Answer for her →</button></div>')
-        : attestButtons;
-    } else if(type === 'no_ping'){
-      why = '☎️ No salon WhatsApp on file — the machine <b>could not ping them</b>. Ask the salon yourself and press their answer:';
-      act = proposeOpen[b.id] ? proposeEditor(b) : relayButtons(b);
-    } else if(type === 'ping_failed'){
-      why = 'The WhatsApp ping to the salon <b>failed</b> — likely no open session yet (they must have messaged Eva in the last 24h). <b>Call them</b>, then press their answer:';
-      act = proposeOpen[b.id] ? proposeEditor(b) : relayButtons(b);
-    } else if(type === 'pending'){
-      const m = ageMin(b);
-      why = m > 15
-        ? '⏳ Salon silent for <b>' + ageLabel(m) + '</b> (' + pingStatus(pingOf(b)) + '). At 45 min the machine apologizes to the client on its own. Worth a nudge or a call.'
-        : '⏳ Waiting on the salon\'s tap — ' + ageLabel(m) + ' · ' + pingStatus(pingOf(b)) + '. Their tap finishes it on its own.';
-      act = collapsedRelay(b, 'The salon answered you directly? Answer for them →');
-    } else if(type === 'slot_passed'){
-      why = '<span style="color:var(--bad);font-weight:700">⚠ The requested slot has passed</span> with no salon answer. The sweep will expire it and apologize shortly — or act now:';
-      act = proposeOpen[b.id] ? proposeEditor(b) : relayButtons(b);
-    } else {
-      why = 'Flagged for review.';
-      act = '<div class="btns"><button class="b mid" data-a="resolve" data-id="' + b.id + '">Seen, OK ✓</button></div>';
-    }
-    html += '<div class="card' + (urgent ? (hot ? ' case hot' : ' case') : '') + '">' + bookingHead(b) +
-      statLine('Status', why) + act + timeline(b, tl(b)) + '</div>';
+  // ① the questions — the only thing that ever asks anything
+  h += '<div class="sect"><h2>Needs you</h2>' + (questions.length ? '<span class="muted">' + questions.length + '</span>' : '') + '</div>';
+  if(!questions.length){
+    const running = rows.filter(b => live.includes(b.state)).length;
+    h += '<div class="zen"><b>✓</b> Nothing needs you' + (running ? ' — ' + running + ' booking' + (running > 1 ? 's' : '') + ' running on ' + (running > 1 ? 'their' : 'its') + ' own.' : '.') + '</div>';
+  }
+  for(const { b, qu } of questions){
+    h += '<div class="q">' +
+      '<div class="qt">' + qu.text + '</div>' +
+      (qu.sub ? '<div class="qs">' + qu.sub + '</div>' : '') +
+      (proposeOpen[b.id] ? proposeEditor(b) : verbsHtml(b, qu.verbs, qu.call)) +
+      (qu.helper ? '<div class="qh">' + qu.helper + '</div>' : '') +
+      '<div class="qm">' + (qu.meta ? '<span>' + qu.meta + '</span>' : '') + timelineHtml(b, tl(b)) + '</div>' +
+      '</div>';
   }
 
-  // ② CONFIRMED, UPCOMING — done deals waiting for the visit; only shown when there are any.
-  if(upcoming.length){
-    upcoming.sort((a, c) => String(a.slot_date || '').localeCompare(String(c.slot_date || '')) || String(a.slot_time || '').localeCompare(String(c.slot_time || '')));
-    html += '<div class="sect"><h2>Confirmed — upcoming</h2><span class="muted">nothing to do until the visit</span></div>';
-    for(const b of upcoming){
-      const status = '✅ Confirmed for <b>' + dayWord(b.slot_date) + (b.slot_time ? ' ' + hh(b.slot_time) : '') + '</b>.' +
-        (b.client_checkin === 'served' ? ' Client checked in ✓' : '') +
-        ' <button class="link" data-a="cancel_confirmed" data-id="' + b.id + '">salon cancels (imprévu)?</button>';
-      html += '<div class="card">' + bookingHead(b) + statLine('Status', status) + timeline(b, tl(b)) + '</div>';
+  // ② the ledger — quiet rows; tap for detail
+  h += '<div class="sect"><h2>Bookings</h2><span class="muted">' + rows.length + '</span>' +
+    '<button class="tb" data-arch="on" style="margin-left:auto">Archive →</button></div>';
+  h += rows.length ? '<div class="ledger">' + rows.map(b => ledgerRow(b, tl(b), false)).join('') + '</div>'
+    : '<p class="muted">No live bookings.</p>';
+
+  app.innerHTML = h;
+  wire();
+
+  function ledgerRow(b, tlist, inArchive){
+    const c = chip(b);
+    const chipHtml = c.html ? c.t : esc(c.t);
+    let h2 = '<div class="lrow" data-x="' + b.id + '">' +
+      '<span class="when">' + (whenStr(b) || '—') + '</span>' +
+      '<span class="whostr">' + first(b.customer_name) + ' → ' + esc(b.salons?.name || '?') + '</span>' +
+      '<span class="chip' + (c.act ? ' act' : '') + '">' + chipHtml + '</span></div>';
+    if(expandOpen[b.id]){
+      const pend = b.state === 'pending_salon' || b.state === 'received';
+      const conf = b.state === 'confirmed' || b.state === 'reminded';
+      let acts = '';
+      if(!inArchive && pend) acts = '<div class="verbs">' +
+        '<button class="v" data-a="confirm" data-id="' + b.id + '">Confirm</button>' +
+        '<button class="v" data-a="refuse" data-id="' + b.id + '">Refuse</button>' +
+        '<button class="vq" data-a="propose_open" data-id="' + b.id + '">Suggest a change</button>' +
+        '<button class="vq" data-a="client_cancel" data-id="' + b.id + '" data-ref="' + esc(b.ref) + '">Client cancelled</button></div>' +
+        (proposeOpen[b.id] ? proposeEditor(b) : '');
+      else if(!inArchive && conf) acts = '<div class="verbs">' +
+        '<button class="vq" data-a="salon_cancel" data-id="' + b.id + '">Salon cancels</button>' +
+        '<button class="vq" data-a="client_cancel" data-id="' + b.id + '" data-ref="' + esc(b.ref) + '">Client cancelled</button></div>';
+      h2 += '<div class="ldetail"><div class="facts">' + esc(b.deals?.service_name || '?') + teamStr(b) +
+        ((b.party_size || 1) > 1 ? ' · ' + b.party_size + ' pers.' : '') + ' · ' + (b.price_mad ?? '?') + ' DH · +' + esc(b.customer_phone) +
+        ' · <span class="muted">' + esc(b.ref) + '</span>' +
+        (b.no_show_reason ? ' · <span class="muted">no-show: ' + esc(b.no_show_reason) + '</span>' : '') + '</div>' +
+        acts + '<div style="margin-top:8px">' + timelineHtml(b, tlist) + '</div></div>';
     }
+    return h2;
   }
 
-  // ③ FINISHED — recent outcomes; everything older lives in the Archive.
-  finished.sort((a, c) => String(c.updated_at || c.created_at).localeCompare(String(a.updated_at || a.created_at)));
-  html += '<div class="sect"><h2>Finished</h2><span class="muted">recent outcomes</span>' +
-    '<button class="link" data-arch="on">Open the archive (' + (bks || []).length + ') →</button></div>';
-  if(!finished.length) html += '<div class="zen muted">No finished bookings yet.</div>';
-  for(const b of finished.slice(0, 6)){
-    const note = b.state === 'showed' ? ('fee applies · marked by ' + ({ salon_tap:'the salon', client_checkin:'the client', ops:'you' }[b.showed_source] || '—'))
-      : b.state === 'no_show' ? ('no fee' + (b.no_show_reason ? ' · ' + esc(b.no_show_reason) : ''))
-      : b.state === 'expired' ? 'no salon answer in time — client got the apology'
-      : '';
-    html += '<div class="card">' + bookingHead(b) + (note ? statLine('Outcome', note) : '') + timeline(b, tl(b)) + '</div>';
+  function wire(){
+    const hq = document.getElementById('hq');
+    if(hq) hq.oninput = () => { historyQuery = hq.value; clearTimeout(hq._t); hq._t = setTimeout(refresh, 350); };
+    app.querySelectorAll('[data-arch]').forEach(el => el.onclick = () => { archiveMode = el.dataset.arch === 'on'; historyQuery = ''; refresh(); });
+    app.querySelectorAll('.lrow').forEach(el => el.onclick = (e) => {
+      if(e.target.closest('[data-a]') || e.target.closest('a')) return;
+      const id = el.dataset.x;
+      if(expandOpen[id]) delete expandOpen[id]; else expandOpen[id] = true;
+      refresh();
+    });
+    app.querySelectorAll('[data-a]').forEach(el => el.onclick = async (e) => {
+      e.stopPropagation();
+      const id = el.dataset.id, a = el.dataset.a;
+      if(a === 'tl_open'){ tlOpen[id] = true; refresh(); return; }
+      if(a === 'tl_close'){ delete tlOpen[id]; refresh(); return; }
+      if(a === 'propose_open'){ proposeOpen[id] = true; refresh(); return; }
+      if(a === 'propose_back'){ delete proposeOpen[id]; refresh(); return; }
+      if(a === 'noshow_open'){ noShowOpen[id] = true; refresh(); return; }
+      el.disabled = true;
+      if(a === 'confirm') await ops({ action:'confirm_booking', booking_id:id });
+      else if(a === 'refuse'){
+        if(confirm('Refuse this booking? The client will be told the slot isn’t available and offered another day.'))
+          await ops({ action:'cancel_booking', booking_id:id });
+      }
+      else if(a === 'client_cancel') await ops({ action:'cancel_booking', booking_id:id, message: "C'est annulé ✔ (" + el.dataset.ref + ") — à très bientôt 🌸" });
+      else if(a === 'salon_cancel'){
+        if(confirm('The salon cancels this confirmed booking? The client gets the apology and a rebook offer.'))
+          await ops({ action:'cancel_confirmed', booking_id:id });
+      }
+      else if(a === 'resolve') await ops({ action:'resolve_review', booking_id:id });
+      else if(a === 'showed'){
+        await ops({ action:'mark_showed', booking_id:id });
+        undoToast('Came ✓ recorded', { state:'confirmed', showed_source:null }, id);
+      }
+      else if(a === 'noshow_confirm'){
+        await ops({ action:'mark_no_show', booking_id:id, reason: app.querySelector('[data-nsr="' + id + '"]')?.value || undefined });
+        undoToast('No-show recorded', { state:'confirmed', no_show_reason:null }, id);
+      }
+      else if(a === 'propose'){
+        const t = app.querySelector('[data-time="' + id + '"]')?.value || undefined;
+        const n = app.querySelector('[data-party="' + id + '"]')?.value || undefined;
+        await ops({ action:'propose_alternative', booking_id:id, slot_time:t, party_size:n ? +n : undefined });
+      }
+      delete proposeOpen[id]; delete noShowOpen[id];
+      refresh();
+    });
   }
-  if(finished.length > 6) html += '<div class="zen muted">' + (finished.length - 6) + ' more in the archive.</div>';
-
-  app.innerHTML = html;
-  wireBookings();
-}
-
-function wireBookings(){
-  const hq = document.getElementById('hq');
-  if(hq) hq.oninput = () => { historyQuery = hq.value; clearTimeout(hq._t); hq._t = setTimeout(refresh, 350); };
-  app.querySelectorAll('[data-arch]').forEach(el => el.onclick = () => { archiveMode = el.dataset.arch === 'on'; historyQuery = ''; refresh(); });
-  app.querySelectorAll('[data-a]').forEach(el => el.onclick = async () => {
-    const id = el.dataset.id, a = el.dataset.a;
-    if(a === 'tl_open'){ tlOpen[id] = true; refresh(); return; }
-    if(a === 'tl_close'){ delete tlOpen[id]; refresh(); return; }
-    if(a === 'propose_open'){ proposeOpen[id] = true; refresh(); return; }
-    if(a === 'propose_back'){ delete proposeOpen[id]; refresh(); return; }
-    if(a === 'manual_open'){ manualOpen[id] = true; refresh(); return; }
-    if(a === 'manual_back'){ delete manualOpen[id]; refresh(); return; }
-    if(a === 'noshow_open'){ noShowOpen[id] = true; refresh(); return; }
-    if(a === 'noshow_close'){ delete noShowOpen[id]; refresh(); return; }
-    el.disabled = true; el.textContent = '…';
-    if(a === 'confirm') await ops({ action:'confirm_booking', booking_id:id });
-    else if(a === 'cancel') await ops({ action:'cancel_booking', booking_id:id });
-    else if(a === 'cancel_client') await ops({ action:'cancel_booking', booking_id:id, message: "C'est annulé ✔ (" + el.dataset.ref + ") — à très bientôt 🌸" });
-    else if(a === 'cancel_confirmed'){ if(confirm('The salon cancels a CONFIRMED booking — the client gets the apology + rebook message. Sure?')) await ops({ action:'cancel_confirmed', booking_id:id }); }
-    else if(a === 'resolve') await ops({ action:'resolve_review', booking_id:id });
-    else if(a === 'showed') await ops({ action:'mark_showed', booking_id:id });
-    else if(a === 'noshow_confirm') await ops({ action:'mark_no_show', booking_id:id, reason: app.querySelector('[data-nsr="' + id + '"]')?.value || undefined });
-    else if(a === 'propose'){
-      const t = app.querySelector('[data-time="' + id + '"]')?.value || undefined;
-      const n = app.querySelector('[data-party="' + id + '"]')?.value || undefined;
-      await ops({ action:'propose_alternative', booking_id:id, slot_time:t, party_size:n ? +n : undefined });
-    }
-    delete proposeOpen[id]; delete noShowOpen[id]; delete manualOpen[id];
-    refresh();
-  });
 }
 
 async function dealsView(){
