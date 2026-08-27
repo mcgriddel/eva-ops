@@ -150,9 +150,9 @@ async function bookingsView(){
             '<div class="muted" style="margin-top:6px">She answers OUI (or not) on WhatsApp — when she does, come back and press « Yes ».</div>'
           : '<div style="font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--soft);margin-bottom:6px">What does the salon say?</div>' +
             '<div class="row" style="justify-content:flex-start">' +
-              '<button class="act" data-a="confirm" data-id="' + b.id + '">Yes ✓ — confirm</button>' +
-              '<button class="act ghost" data-a="propose_open" data-id="' + b.id + '">Yes, but…</button>' +
-              '<button class="act ghost" data-a="cancel" data-id="' + b.id + '">No — refuse</button></div>' +
+              '<button class="act ghost" data-a="confirm" data-id="' + b.id + '" style="border-color:var(--ok);color:var(--ok)">Yes — send confirmation ✓</button>' +
+              '<button class="act ghost" data-a="propose_open" data-id="' + b.id + '" style="border-color:var(--warn);color:var(--warn)">Yes, but…</button>' +
+              '<button class="act ghost" data-a="cancel" data-id="' + b.id + '" style="border-color:#C0392B;color:#C0392B">No — send refusal</button></div>' +
             '<div class="row" style="justify-content:flex-end;margin-top:4px"><button data-a="cancel_client" data-id="' + b.id + '" data-ref="' + esc(b.ref) + '" style="border:0;background:none;color:var(--grey);font-size:12px;text-decoration:underline;cursor:pointer">client cancelled?</button></div>') +
         '</div>'
       : b.state === 'confirmed' || b.state === 'reminded'
