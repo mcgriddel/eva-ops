@@ -66,6 +66,7 @@ const app = document.getElementById('app');
 let tab = 'inbox', session = null, timer = null, openPhone = null;
 const proposeOpen = {}; // booking id → true while the "yes, but…" editor is open
 const manualOpen = {};  // booking id → true while the manual-relay buttons are expanded
+const tlOpen = {};      // booking id → true while the conversation timeline is expanded
 
 function esc(s){ return String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 function toast(m){ const t = document.getElementById('toast'); t.textContent = m; t.style.opacity = 1; setTimeout(() => t.style.opacity = 0, 2600); }
@@ -155,15 +156,17 @@ async function bookingsView(){
   function timeline(b){
     const evs = tlById[b.id] || [];
     if(!evs.length) return '';
-    return '<div style="border-left:2px solid var(--line);margin:10px 0 2px;padding-left:10px;display:flex;flex-direction:column;gap:3px">' +
+    if(!tlOpen[b.id]) return '<div style="margin-top:8px"><button data-a="tl_open" data-id="' + b.id + '" style="border:0;background:none;color:var(--grey);font-size:12px;text-decoration:underline;cursor:pointer">show conversation (' + evs.length + ')</button></div>';
+    return '<div style="margin-top:8px"><button data-a="tl_close" data-id="' + b.id + '" style="border:0;background:none;color:var(--grey);font-size:12px;text-decoration:underline;cursor:pointer">hide conversation</button></div>' +
+      '<div style="border-left:2px solid var(--line);margin:6px 0 2px;padding-left:10px;display:flex;flex-direction:column;gap:3px">' +
       evs.map(m => '<div class="muted" style="font-size:12px"><span style="font-variant-numeric:tabular-nums">' + hhmmT(m.created_at) + '</span>' +
         ' <b style="color:var(--soft)">' + who(b, m) + '</b> ' + esc((m.body || '').slice(0, 64)) + ((m.body || '').length > 64 ? '…' : '') + '</div>').join('') + '</div>';
   }
   const relayButtons = b =>
     '<div class="row" style="justify-content:flex-start;margin-top:8px">' +
-      '<button class="act ghost" data-a="confirm" data-id="' + b.id + '" style="border-color:var(--ok);color:var(--ok)">Salon says yes → confirm</button>' +
-      '<button class="act ghost" data-a="propose_open" data-id="' + b.id + '" style="border-color:var(--warn);color:var(--warn)">Yes, but…</button>' +
-      '<button class="act ghost" data-a="cancel" data-id="' + b.id + '" style="border-color:#C0392B;color:#C0392B">No → refuse</button>' +
+      '<button class="act ghost" data-a="confirm" data-id="' + b.id + '">Salon says yes → confirm</button>' +
+      '<button class="act ghost" data-a="propose_open" data-id="' + b.id + '">Yes, but…</button>' +
+      '<button class="act ghost" data-a="cancel" data-id="' + b.id + '">No → refuse</button>' +
       '<button data-a="cancel_client" data-id="' + b.id + '" data-ref="' + esc(b.ref) + '" style="border:0;background:none;color:var(--grey);font-size:12px;text-decoration:underline;cursor:pointer">client cancelled?</button></div>';
 
   app.innerHTML = bks.map(b => {
@@ -211,6 +214,8 @@ async function bookingsView(){
   }).join('');
   app.querySelectorAll('[data-a]').forEach(el => el.onclick = async () => {
     const id = el.dataset.id, a = el.dataset.a;
+    if(a === 'tl_open'){ tlOpen[id] = true; refresh(); return; }
+    if(a === 'tl_close'){ delete tlOpen[id]; refresh(); return; }
     if(a === 'manual_open'){ manualOpen[id] = true; refresh(); return; }
     if(a === 'manual_back'){ delete manualOpen[id]; refresh(); return; }
     if(a === 'propose_open'){ proposeOpen[id] = true; refresh(); return; }
