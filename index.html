@@ -85,6 +85,7 @@ const FN = 'https://iapwfxbfwlnibyucetca.supabase.co' + '/functions/v1/ops-send'
 const app = document.getElementById('app');
 let tab = 'bookings', session = null, timer = null, openPhone = null, historyQuery = '', archiveMode = false;
 const proposeOpen = {}; // booking id → true while the "yes, but…" editor is open
+const manualOpen = {};  // booking id → true while collapsed fallback actions are expanded
 const noShowOpen = {};  // booking id → true while the no-show reason input is open
 const tlOpen = {};      // booking id → true while the conversation timeline is expanded
 
@@ -202,6 +203,14 @@ const relayButtons = b =>
     '<button class="b mid" data-a="propose_open" data-id="' + b.id + '">Salon says yes, but…</button>' +
     '<button class="b no" data-a="cancel" data-id="' + b.id + '">Salon says no → refuse ✕</button>' +
     '<button class="link" data-a="cancel_client" data-id="' + b.id + '" data-ref="' + esc(b.ref) + '">client cancelled? → close it + tell her « C\'est annulé ✔ »</button></div>';
+// buttons demand an answer — show them only when the answer must come from OPS.
+// When the machine is already asking someone (salon tap, client check-in), fold them away.
+function collapsedRelay(b, label){
+  if(proposeOpen[b.id]) return proposeEditor(b);
+  if(manualOpen[b.id]) return relayButtons(b) +
+    '<div style="margin-top:6px"><button class="link" data-a="manual_back" data-id="' + b.id + '">hide ↑</button></div>';
+  return '<div style="margin-top:8px"><button class="link" data-a="manual_open" data-id="' + b.id + '">' + label + '</button></div>';
+}
 function proposeEditor(b){
   return '<div style="font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--soft);margin:8px 0 6px">Salon says yes, but… what can it offer?</div>' +
     '<div class="row" style="justify-content:flex-start">' +
@@ -288,8 +297,8 @@ async function bookingsView(){
     } else if(type === 'no_show_claim'){
       why = 'The salon says the client <b>didn\'t come</b> — that cancels the fee, so it needs your eyes. Their reason should be in the conversation below.';
       act = '<div class="btns">' +
-        '<button class="b no" data-a="noshow_open" data-id="' + b.id + '">Agree → confirm no-show ✕</button>' +
-        '<button class="b yes" data-a="showed" data-id="' + b.id + '">Overrule → she did come ✓</button></div>' +
+        '<button class="b no" data-a="noshow_open" data-id="' + b.id + '">It\'s true, she didn\'t come — no fee ✕</button>' +
+        '<button class="b yes" data-a="showed" data-id="' + b.id + '">She DID come — fee applies ✓</button></div>' +
         (noShowOpen[b.id] ? '<div class="btns"><input data-nsr="' + b.id + '" placeholder="reason (optional)" style="max-width:260px;margin:0"><button class="b no" data-a="noshow_confirm" data-id="' + b.id + '">Save no-show</button></div>' : '');
     } else if(type === 'checkin_conflict'){
       why = 'Conflict: the salon marked <b>« came »</b> but the <b>client says she didn\'t go</b>. Check the conversation, maybe call.';
@@ -303,11 +312,16 @@ async function bookingsView(){
         ? 'At check-in she said « pas encore » — give it a moment, or answer if you know:'
         : 'I couldn\'t ask her on WhatsApp (no open session) — settle it with the salon, or answer if you know:';
       why = 'The ' + (b.slot_time ? hh(b.slot_time) + ' ' : '') + 'slot has passed — <b>did she come?</b> (« she came » = the fee event). ' + tail;
-      act = '<div class="btns">' +
+      const attestButtons = '<div class="btns">' +
         '<button class="b yes" data-a="showed" data-id="' + b.id + '">She came → fee applies ✓</button>' +
         '<button class="b no" data-a="noshow_open" data-id="' + b.id + '">She didn\'t come → no-show…</button>' +
         '<button class="link" data-a="cancel_confirmed" data-id="' + b.id + '">it never happened — salon cancelled?</button></div>' +
         (noShowOpen[b.id] ? '<div class="btns"><input data-nsr="' + b.id + '" placeholder="reason (optional)" style="max-width:260px;margin:0"><button class="b no" data-a="noshow_confirm" data-id="' + b.id + '">Save no-show</button></div>' : '');
+      act = (b.checkin_sent_at && !b.client_checkin && !noShowOpen[b.id])
+        ? (manualOpen[b.id]
+            ? attestButtons + '<div style="margin-top:6px"><button class="link" data-a="manual_back" data-id="' + b.id + '">hide ↑</button></div>'
+            : '<div style="margin-top:8px"><button class="link" data-a="manual_open" data-id="' + b.id + '">You already know? Answer for her →</button></div>')
+        : attestButtons;
     } else if(type === 'no_ping'){
       why = '☎️ No salon WhatsApp on file — the machine <b>could not ping them</b>. Ask the salon yourself and press their answer:';
       act = proposeOpen[b.id] ? proposeEditor(b) : relayButtons(b);
@@ -317,9 +331,9 @@ async function bookingsView(){
     } else if(type === 'pending'){
       const m = ageMin(b);
       why = m > 15
-        ? '⏳ Salon silent for <b>' + ageLabel(m) + '</b> (' + pingStatus(pingOf(b)) + '). At 45 min the machine apologizes to the client on its own. Nudge or call the salon, or answer for them:'
-        : '⏳ Waiting on the salon\'s tap — ' + ageLabel(m) + ' · ' + pingStatus(pingOf(b)) + '. Their tap finishes it on its own — or nudge them / answer for them if you\'re quicker:';
-      act = proposeOpen[b.id] ? proposeEditor(b) : relayButtons(b);
+        ? '⏳ Salon silent for <b>' + ageLabel(m) + '</b> (' + pingStatus(pingOf(b)) + '). At 45 min the machine apologizes to the client on its own. Worth a nudge or a call.'
+        : '⏳ Waiting on the salon\'s tap — ' + ageLabel(m) + ' · ' + pingStatus(pingOf(b)) + '. Their tap finishes it on its own.';
+      act = collapsedRelay(b, 'The salon answered you directly? Answer for them →');
     } else if(type === 'slot_passed'){
       why = '<span style="color:var(--bad);font-weight:700">⚠ The requested slot has passed</span> with no salon answer. The sweep will expire it and apologize shortly — or act now:';
       act = proposeOpen[b.id] ? proposeEditor(b) : relayButtons(b);
@@ -371,6 +385,8 @@ function wireBookings(){
     if(a === 'tl_close'){ delete tlOpen[id]; refresh(); return; }
     if(a === 'propose_open'){ proposeOpen[id] = true; refresh(); return; }
     if(a === 'propose_back'){ delete proposeOpen[id]; refresh(); return; }
+    if(a === 'manual_open'){ manualOpen[id] = true; refresh(); return; }
+    if(a === 'manual_back'){ delete manualOpen[id]; refresh(); return; }
     if(a === 'noshow_open'){ noShowOpen[id] = true; refresh(); return; }
     if(a === 'noshow_close'){ delete noShowOpen[id]; refresh(); return; }
     el.disabled = true; el.textContent = '…';
@@ -386,7 +402,7 @@ function wireBookings(){
       const n = app.querySelector('[data-party="' + id + '"]')?.value || undefined;
       await ops({ action:'propose_alternative', booking_id:id, slot_time:t, party_size:n ? +n : undefined });
     }
-    delete proposeOpen[id]; delete noShowOpen[id];
+    delete proposeOpen[id]; delete noShowOpen[id]; delete manualOpen[id];
     refresh();
   });
 }
