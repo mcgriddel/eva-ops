@@ -266,17 +266,17 @@ function questionOf(b, helpers){
     const callV = tel ? { tel } : null;
     if(slotPassed(b)) return { at: b.created_at, text: client + '’s ' + (b.slot_time ? hh(b.slot_time) : '') + ' slot passed — no answer from ' + salon + '.',
       sub: svc + (b.party_size > 1 ? ' · ' + b.party_size + ' pers.' : ''),
-      verbs: [mkV('confirm', 'Confirm'), mkV('refuse', 'Refuse'), mkQ('propose_open', 'Suggest a change')], call: callV,
+      verbs: [mkV('confirm', 'Confirm'), mkV('refuse', 'Refuse'), mkQ('propose_open', 'Suggest a change'), mkQ('client_cancel', 'Client cancelled')], call: callV,
       meta: 'the sweep will expire it soon' };
     if(!b.salon_pinged_at) return { at: b.created_at, text: salon + ' has no WhatsApp — ask them about ' + client + '’s ' + when + ' ' + svc.toLowerCase() + '.',
-      verbs: [mkV('confirm', 'Confirm'), mkV('refuse', 'Refuse'), mkQ('propose_open', 'Suggest a change')],
+      verbs: [mkV('confirm', 'Confirm'), mkV('refuse', 'Refuse'), mkQ('propose_open', 'Suggest a change'), mkQ('client_cancel', 'Client cancelled')],
       meta: 'asked you ' + ageLabel(ageMin(b.created_at)) + ' ago' };
     if(ping?.wa_error) return { at: b.created_at, text: 'Couldn’t reach ' + salon + ' on WhatsApp about ' + client + '’s ' + when + ' booking.',
       sub: 'Call them, then answer:',
-      verbs: [mkV('confirm', 'Confirm'), mkV('refuse', 'Refuse')], call: callV,
+      verbs: [mkV('confirm', 'Confirm'), mkV('refuse', 'Refuse'), mkQ('client_cancel', 'Client cancelled')], call: callV,
       meta: 'ping failed' };
     if(ageMin(b.created_at) > 15) return { at: b.created_at, text: salon + ' hasn’t answered about ' + client + '’s ' + when + ' ' + svc.toLowerCase() + '.',
-      verbs: [mkV('confirm', 'Confirm'), mkV('refuse', 'Refuse'), mkQ('propose_open', 'Suggest a change')], call: callV,
+      verbs: [mkV('confirm', 'Confirm'), mkV('refuse', 'Refuse'), mkQ('propose_open', 'Suggest a change'), mkQ('client_cancel', 'Client cancelled')], call: callV,
       meta: 'asked ' + ageLabel(ageMin(b.created_at)) + ' ago' + (ticksStr(ping) ? ' · ' + ticksStr(ping) : '') };
     return null; // young pending → ledger only, the machine is on it
   }
@@ -296,7 +296,7 @@ const mkQ = (a, label) => ({ a, label, quiet: true });
 function verbsHtml(b, verbs, call){
   let h = '<div class="verbs">';
   for(const x of verbs){
-    if(x.quiet) h += '<button class="vq" data-a="' + x.a + '" data-id="' + b.id + '">' + x.label + '</button>';
+    if(x.quiet) h += '<button class="vq" data-a="' + x.a + '" data-id="' + b.id + '" data-ref="' + esc(b.ref) + '">' + x.label + '</button>';
     else h += '<button class="v" data-a="' + x.a + '" data-id="' + b.id + '" data-ref="' + esc(b.ref) + '">' + x.label + '</button>';
   }
   if(call?.tel) h += '<a class="v" href="tel:+' + call.tel + '">Call salon</a>';
@@ -353,9 +353,12 @@ async function bookingsView(){
     if(qu) questions.push({ b, qu });
   }
   questions.sort((a, c) => String(a.qu.at).localeCompare(String(c.qu.at))); // oldest first
+  const qIds = new Set(questions.map(q => q.b.id));
   const live = ['pending_salon', 'received', 'confirmed', 'reminded'];
-  const rows = (bks || []).filter(b => live.includes(b.state) || b.slot_date === today)
-    .sort((a, c) => String(a.slot_date || '9') .localeCompare(String(c.slot_date || '9')) || String(a.slot_time || '').localeCompare(String(c.slot_time || '')));
+  const bySlot = (a, c) => String(a.slot_date || '9').localeCompare(String(c.slot_date || '9')) || String(a.slot_time || '').localeCompare(String(c.slot_time || ''));
+  const liveRows = (bks || []).filter(b => live.includes(b.state)).sort(bySlot);
+  const doneRows = (bks || []).filter(b => !live.includes(b.state) &&
+    (b.slot_date === today || new Date(b.updated_at).toLocaleDateString('en-CA', { timeZone: TZ }) === today)).sort(bySlot);
   const archiveCount = (bks || []).length;
   document.getElementById('bookBadge').innerHTML = questions.length ? '<span class="badge">' + questions.length + '</span>' : '';
 
@@ -365,7 +368,7 @@ async function bookingsView(){
       '<input id="hq" placeholder="search name, salon, ref, phone…" value="' + esc(historyQuery) + '" style="margin-bottom:10px">';
     const qs = historyQuery.trim().toLowerCase();
     const shown = qs ? (bks || []).filter(b => [b.ref, b.customer_name, b.customer_phone, b.salons?.name, b.deals?.service_name].some(x => (x || '').toLowerCase().includes(qs))) : (bks || []).slice(0, 30);
-    h += '<div class="ledger">' + shown.map(b => ledgerRow(b, tl(b), true)).join('') + '</div>';
+    h += '<div class="ledger">' + shown.map(b => ledgerRow(b, tl(b), 'archive')).join('') + '</div>';
     if(!qs && archiveCount > 30) h += '<p class="muted" style="text-align:center;margin-top:10px">' + (archiveCount - 30) + ' more — search to find them.</p>';
     app.innerHTML = h;
     wire();
@@ -377,7 +380,7 @@ async function bookingsView(){
   // ① the questions — the only thing that ever asks anything
   h += '<div class="sect"><h2>Needs you</h2>' + (questions.length ? '<span class="muted">' + questions.length + '</span>' : '') + '</div>';
   if(!questions.length){
-    const running = rows.filter(b => live.includes(b.state)).length;
+    const running = liveRows.length;
     h += '<div class="zen"><b>✓</b> Nothing needs you' + (running ? ' — ' + running + ' booking' + (running > 1 ? 's' : '') + ' running on ' + (running > 1 ? 'their' : 'its') + ' own.' : '.') + '</div>';
   }
   for(const { b, qu } of questions){
@@ -390,16 +393,21 @@ async function bookingsView(){
       '</div>';
   }
 
-  // ② the ledger — quiet rows; tap for detail
-  h += '<div class="sect"><h2>Bookings</h2><span class="muted">' + rows.length + '</span>' +
-    '<button class="tb" data-arch="on" style="margin-left:auto">Archive →</button></div>';
-  h += rows.length ? '<div class="ledger">' + rows.map(b => ledgerRow(b, tl(b), false)).join('') + '</div>'
+  // ② live — quiet rows, machine driving; jump-in on expand (only when no question card is already asking)
+  h += '<div class="sect"><h2>Live</h2>' + (liveRows.length ? '<span class="muted">' + liveRows.length + '</span>' : '') + '</div>';
+  h += liveRows.length ? '<div class="ledger">' + liveRows.map(b => ledgerRow(b, tl(b), 'live')).join('') + '</div>'
     : '<p class="muted">No live bookings.</p>';
+
+  // ③ done — finished outcomes; read-only, archive behind it
+  h += '<div class="sect"><h2>Done</h2>' + (doneRows.length ? '<span class="muted">' + doneRows.length + '</span>' : '') +
+    '<button class="tb" data-arch="on" style="margin-left:auto">Archive →</button></div>';
+  h += doneRows.length ? '<div class="ledger">' + doneRows.map(b => ledgerRow(b, tl(b), 'done')).join('') + '</div>'
+    : '<p class="muted">Nothing finished yet today.</p>';
 
   app.innerHTML = h;
   wire();
 
-  function ledgerRow(b, tlist, inArchive){
+  function ledgerRow(b, tlist, mode){
     const c = chip(b);
     const chipHtml = c.html ? c.t : esc(c.t);
     let h2 = '<div class="lrow" data-x="' + b.id + '">' +
@@ -410,15 +418,18 @@ async function bookingsView(){
       const pend = b.state === 'pending_salon' || b.state === 'received';
       const conf = b.state === 'confirmed' || b.state === 'reminded';
       let acts = '';
-      if(!inArchive && pend) acts = '<div class="verbs">' +
-        '<button class="v" data-a="confirm" data-id="' + b.id + '">Confirm</button>' +
-        '<button class="v" data-a="refuse" data-id="' + b.id + '">Refuse</button>' +
-        '<button class="vq" data-a="propose_open" data-id="' + b.id + '">Suggest a change</button>' +
-        '<button class="vq" data-a="client_cancel" data-id="' + b.id + '" data-ref="' + esc(b.ref) + '">Client cancelled</button></div>' +
-        (proposeOpen[b.id] ? proposeEditor(b) : '');
-      else if(!inArchive && conf) acts = '<div class="verbs">' +
-        '<button class="vq" data-a="salon_cancel" data-id="' + b.id + '">Salon cancels</button>' +
-        '<button class="vq" data-a="client_cancel" data-id="' + b.id + '" data-ref="' + esc(b.ref) + '">Client cancelled</button></div>';
+      // the jump-in: verbs only for live bookings whose question card isn't already showing them
+      if(mode === 'live' && !qIds.has(b.id)){
+        if(pend) acts = '<div class="verbs">' +
+          '<button class="v" data-a="confirm" data-id="' + b.id + '">Confirm</button>' +
+          '<button class="v" data-a="refuse" data-id="' + b.id + '">Refuse</button>' +
+          '<button class="vq" data-a="propose_open" data-id="' + b.id + '">Suggest a change</button>' +
+          '<button class="vq" data-a="client_cancel" data-id="' + b.id + '" data-ref="' + esc(b.ref) + '">Client cancelled</button></div>' +
+          (proposeOpen[b.id] ? proposeEditor(b) : '');
+        else if(conf) acts = '<div class="verbs">' +
+          '<button class="vq" data-a="salon_cancel" data-id="' + b.id + '">Salon cancels</button>' +
+          '<button class="vq" data-a="client_cancel" data-id="' + b.id + '" data-ref="' + esc(b.ref) + '">Client cancelled</button></div>';
+      }
       h2 += '<div class="ldetail"><div class="facts">' + esc(b.deals?.service_name || '?') + teamStr(b) +
         ((b.party_size || 1) > 1 ? ' · ' + b.party_size + ' pers.' : '') + ' · ' + (b.price_mad ?? '?') + ' DH · +' + esc(b.customer_phone) +
         ' · <span class="muted">' + esc(b.ref) + '</span>' +
@@ -452,7 +463,10 @@ async function bookingsView(){
         if(confirm('Refuse this booking? The client will be told the slot isn’t available and offered another day.'))
           await ops({ action:'cancel_booking', booking_id:id });
       }
-      else if(a === 'client_cancel') await ops({ action:'cancel_booking', booking_id:id, message: "C'est annulé ✔ (" + el.dataset.ref + ") — à très bientôt 🌸" });
+      else if(a === 'client_cancel'){
+        if(confirm('The client cancelled? She gets a short confirmation, nothing else.'))
+          await ops({ action:'cancel_booking', booking_id:id, message: "C'est annulé ✔ (" + el.dataset.ref + ") — à très bientôt 🌸" });
+      }
       else if(a === 'salon_cancel'){
         if(confirm('The salon cancels this confirmed booking? The client gets the apology and a rebook offer.'))
           await ops({ action:'cancel_confirmed', booking_id:id });
