@@ -39,17 +39,17 @@
   .vq { border:0; background:none; color:var(--soft); font-size:13px; font-weight:600; text-decoration:underline; text-underline-offset:3px; cursor:pointer; padding:9px 4px; font-family:inherit; }
   .tb { border:0; background:none; color:var(--grey); font-size:12px; font-weight:600; text-decoration:underline; text-underline-offset:3px; cursor:pointer; padding:0; font-family:inherit; }
 
-  /* ledger — flat rows, hairline-separated, read-only at rest */
-  .ledger { background:#fff; border:1px solid var(--line); border-radius:10px; overflow:hidden; }
-  .lrow { display:flex; align-items:center; gap:8px; padding:11px 14px; border-top:1px solid var(--line); cursor:pointer; }
-  .lrow:first-child { border-top:0; }
+  /* live/done — quiet cards, same skin as the questions, never the accent */
+  .ledger { display:flex; flex-direction:column; gap:10px; }
+  .lcard { background:#fff; border:1px solid var(--line); border-radius:10px; overflow:hidden; }
+  .lrow { display:flex; align-items:center; gap:8px; padding:13px 16px; cursor:pointer; }
   .lrow:hover { background:var(--ivory); }
   .lrow .when { font-variant-numeric:tabular-nums; font-weight:650; white-space:nowrap; }
   .lrow .whostr { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .lrow .chip { margin-left:auto; color:var(--grey); font-size:12.5px; white-space:nowrap; }
   .lrow .chip.act { color:var(--soft); font-weight:600; }
   .lrow .chip .okmk { color:var(--ok); }
-  .ldetail { border-top:1px solid var(--line); background:var(--ivory); padding:12px 14px; cursor:default; }
+  .ldetail { border-top:1px solid var(--line); padding:12px 16px; cursor:default; }
   .ldetail .facts { font-size:13.5px; }
   .ldetail .verbs { margin-top:9px; }
 
@@ -352,11 +352,14 @@ async function bookingsView(){
     const qu = questionOf(b, helpers);
     if(qu) questions.push({ b, qu });
   }
-  questions.sort((a, c) => String(a.qu.at).localeCompare(String(c.qu.at))); // oldest first
+  // the whole page reads chronologically — questions too
+  const qKey = ({ b, qu }) => b.slot_date ? b.slot_date + 'T' + (b.slot_time || '00:00') : String(qu.at);
+  questions.sort((a, c) => qKey(a).localeCompare(qKey(c)));
   const qIds = new Set(questions.map(q => q.b.id));
   const live = ['pending_salon', 'received', 'confirmed', 'reminded'];
   const bySlot = (a, c) => String(a.slot_date || '9').localeCompare(String(c.slot_date || '9')) || String(a.slot_time || '').localeCompare(String(c.slot_time || ''));
-  const liveRows = (bks || []).filter(b => live.includes(b.state)).sort(bySlot);
+  // a booking lives in exactly ONE place: asking → Needs you, quiet → Live, finished → Done
+  const liveRows = (bks || []).filter(b => live.includes(b.state) && !qIds.has(b.id)).sort(bySlot);
   const doneRows = (bks || []).filter(b => !live.includes(b.state) &&
     (b.slot_date === today || new Date(b.updated_at).toLocaleDateString('en-CA', { timeZone: TZ }) === today)).sort(bySlot);
   const archiveCount = (bks || []).length;
@@ -418,8 +421,8 @@ async function bookingsView(){
       const pend = b.state === 'pending_salon' || b.state === 'received';
       const conf = b.state === 'confirmed' || b.state === 'reminded';
       let acts = '';
-      // the jump-in: verbs only for live bookings whose question card isn't already showing them
-      if(mode === 'live' && !qIds.has(b.id)){
+      // the jump-in: Live holds no question-carrying bookings, so verbs here never duplicate a card
+      if(mode === 'live'){
         if(pend) acts = '<div class="verbs">' +
           '<button class="v" data-a="confirm" data-id="' + b.id + '">Confirm</button>' +
           '<button class="v" data-a="refuse" data-id="' + b.id + '">Refuse</button>' +
@@ -436,7 +439,7 @@ async function bookingsView(){
         (b.no_show_reason ? ' · <span class="muted">no-show: ' + esc(b.no_show_reason) + '</span>' : '') + '</div>' +
         acts + '<div style="margin-top:8px">' + timelineHtml(b, tlist) + '</div></div>';
     }
-    return h2;
+    return '<div class="lcard">' + h2 + '</div>';
   }
 
   function wire(){
