@@ -47,8 +47,9 @@
   /* live/done — quiet cards, same skin as the questions, never the accent */
   .ledger { display:flex; flex-direction:column; gap:10px; }
   .lcard { background:#fff; border:1px solid var(--line); border-radius:10px; overflow:hidden; }
-  .lrow { display:flex; align-items:center; gap:8px; padding:13px 16px; cursor:pointer; }
+  .lrow { display:block; padding:13px 16px; cursor:pointer; }
   .lrow:hover { background:var(--ivory); }
+  .lrow .ltop { display:flex; align-items:center; gap:8px; }
   .ledger .q { margin-bottom:0; } /* flex gap already spaces an in-Live question card */
   .lrow .when { font-variant-numeric:tabular-nums; font-weight:650; white-space:nowrap; }
   .lrow .whostr { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
@@ -425,11 +426,14 @@ async function bookingsView(){
   function ledgerRow(b, tlist, mode){
     const c = chip(b);
     const chipHtml = c.html ? c.t : esc(c.t);
-    // Done rows carry no schedule time — the outcome is the point; the slot lives in the detail
-    let h2 = '<div class="lrow" data-x="' + b.id + '">' +
+    // same two-line shape as a question card: header line, then the facts line.
+    // Done rows carry no schedule time — the outcome is the point; the slot lives in the detail.
+    let h2 = '<div class="lrow" data-x="' + b.id + '"><div class="ltop">' +
       (mode === 'done' ? '' : '<span class="when">' + (whenStr(b) || '—') + '</span>') +
       '<span class="whostr">' + first(b.customer_name) + ' → ' + esc(b.salons?.name || '?') + '</span>' +
-      '<span class="chip' + (c.act ? ' act' : '') + '">' + chipHtml + '</span></div>';
+      '<span class="chip' + (c.act ? ' act' : '') + '">' + chipHtml + '</span></div>' +
+      '<div class="qs">' + esc(b.deals?.service_name || '?') + teamStr(b) +
+      ((b.party_size || 1) > 1 ? ' · ' + b.party_size + ' pers.' : '') + ' · ' + (b.price_mad ?? '?') + ' DH</div></div>';
     if(expandOpen[b.id]){
       const pend = b.state === 'pending_salon' || b.state === 'received';
       const conf = b.state === 'confirmed' || b.state === 'reminded';
@@ -446,10 +450,9 @@ async function bookingsView(){
           '<button class="vq" data-a="salon_cancel" data-id="' + b.id + '">Salon cancels</button>' +
           '<button class="vq" data-a="client_cancel" data-id="' + b.id + '" data-ref="' + esc(b.ref) + '">Client cancelled</button></div>';
       }
+      // the face already carries service · people · price — the detail adds only what it doesn't
       h2 += '<div class="ldetail"><div class="facts">' +
-        (mode === 'done' ? '<span class="muted">' + (whenStr(b) || '—') + '</span> · ' : '') +
-        esc(b.deals?.service_name || '?') + teamStr(b) +
-        ((b.party_size || 1) > 1 ? ' · ' + b.party_size + ' pers.' : '') + ' · ' + (b.price_mad ?? '?') + ' DH · +' + esc(b.customer_phone) +
+        (mode === 'done' ? esc(whenStr(b) || '—') + ' · ' : '') + '+' + esc(b.customer_phone) +
         ' · <span class="muted">' + esc(b.ref) + '</span>' +
         (b.no_show_reason ? ' · <span class="muted">no-show: ' + esc(b.no_show_reason) + '</span>' : '') + '</div>' +
         acts + '<div style="margin-top:8px">' + timelineHtml(b, tlist) + '</div></div>';
