@@ -24,7 +24,8 @@
   .sect .tb { margin-left:auto; }
 
   /* question — the primitive. The only accented element on the page. */
-  .q { background:#fff; border:1px solid var(--line); border-left:3px solid var(--terra); border-radius:10px; padding:13px 16px; margin-bottom:10px; }
+  /* padding-left 14 + the 3px terracotta edge = the quiet card's 16 + 1px hairline: text lines up */
+  .q { background:#fff; border:1px solid var(--line); border-left:3px solid var(--terra); border-radius:10px; padding:13px 16px 13px 14px; margin-bottom:10px; }
   .q .qhead { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
   .q .qt { font-size:15.5px; font-weight:600; line-height:1.4; }
   .q .qs { color:var(--soft); font-size:13px; margin-top:3px; }
@@ -51,11 +52,12 @@
   .lrow:hover { background:var(--ivory); }
   .lrow .ltop { display:flex; align-items:center; gap:8px; }
   .ledger .q { margin-bottom:0; } /* flex gap already spaces an in-Live question card */
-  .lrow .when { font-variant-numeric:tabular-nums; font-weight:650; white-space:nowrap; }
-  .lrow .whostr { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .lrow .chip { margin-left:auto; color:var(--grey); font-size:12.5px; white-space:nowrap; }
-  .lrow .chip.act { color:var(--soft); font-weight:600; }
-  .lrow .chip .okmk { color:var(--ok); }
+  /* header vocabulary — identical wherever a card header appears, question or quiet */
+  .when { font-variant-numeric:tabular-nums; font-weight:650; white-space:nowrap; }
+  .whostr { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .chip { margin-left:auto; color:var(--grey); font-size:12.5px; white-space:nowrap; }
+  .chip.act { color:var(--soft); font-weight:600; }
+  .chip .okmk { color:var(--ok); }
   .ldetail { border-top:1px solid var(--line); padding:12px 16px; cursor:default; }
   .ldetail .facts { font-size:13.5px; }
   .ldetail .verbs { margin-top:9px; }
