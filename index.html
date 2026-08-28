@@ -36,8 +36,8 @@
   .rec { display:grid; grid-template-columns:auto 1fr; gap:5px 14px; margin-top:11px; font-size:14px; align-items:baseline; }
   .rec dt { font-size:10.5px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--grey); white-space:nowrap; }
   .rec dd { color:var(--ink); min-width:0; }
-  .rec dd.st { color:var(--terra); font-weight:600; }          /* the status — your move */
-  .q.quiet .rec dd.st { color:var(--soft); font-weight:500; }  /* the machine is driving */
+  .rec dd.st { font-weight:600; }   /* a state's status reads the same however long it has run */
+  .qm .late { color:var(--terra); font-weight:600; }  /* only the CLOCK says it has gone on too long */
   .rec dd.said { color:var(--soft); font-style:italic; }
   .q .qq { color:var(--soft); font-size:13.5px; margin-top:6px; padding-left:10px; border-left:2px solid var(--line); }
   .q .qh { color:var(--grey); font-size:12px; margin-top:7px; }
@@ -293,23 +293,22 @@ function cardOf(b, helpers){
   }
 
   if(pend){
-    if(slotPassed(b)) return { ...base, sect: 'confirm', mine: true, timer: passedStr(b),
+    if(slotPassed(b)) return { ...base, sect: 'confirm', mine: true, late: true, timer: passedStr(b),
       say: 'The slot passed and the salon never answered.',
       primary: decide, more: moreP, ticks: ticksStr(ping), foot: 'the sweep will expire it soon' };
     if(!b.salon_pinged_at) return { ...base, sect: 'confirm', mine: true, timer: askedStr(b),
       say: 'This salon has no WhatsApp — ask them, then answer here.',
       primary: decide, more: moreP };
-    if(ping?.wa_error) return { ...base, sect: 'confirm', mine: true, timer: askedStr(b),
+    if(ping?.wa_error) return { ...base, sect: 'confirm', mine: true, late: true, timer: askedStr(b),
       say: 'WhatsApp couldn’t reach the salon. Call them, then answer here.',
       callPri: true, primary: decide, more: moreP, ticks: 'ping failed' };
-    if(ageMin(b.created_at) > 15) return { ...base, sect: 'confirm', mine: true, timer: askedStr(b),
-      say: 'The salon still hasn’t answered.', primary: decide, more: moreP, ticks: ticksStr(ping) };
-    return { ...base, sect: 'confirm', mine: false, timer: askedStr(b),
+    const late = ageMin(b.created_at) > 15;
+    return { ...base, sect: 'confirm', mine: late, late, timer: askedStr(b),
       say: 'Waiting for the salon to confirm.', primary: decide, more: moreP, ticks: ticksStr(ping) };
   }
 
   if(conf){
-    if(slotPassed(b)) return { ...base, sect: 'settle', mine: true, timer: passedStr(b),
+    if(slotPassed(b)) return { ...base, sect: 'settle', mine: true, late: true, timer: passedStr(b),
       say: 'Did ' + she + ' come?', primary: attend,
       helper: 'Fee applies only if ' + she + ' came.',
       foot: b.checkin_sent_at && !b.client_checkin ? 'the client was asked too — her answer also settles it' : null };
@@ -327,12 +326,11 @@ function cardOf(b, helpers){
 
 function verbsHtml(b, m){
   const primary = m.primary || [], more = m.more || [];
-  const solid = k => m.mine ? k : ''; // the solid answer is reserved for cards that are your move
   let h = '';
   if(primary.length || more.length || m.callPri){
     h += '<div class="verbs">';
     if(m.callPri && m.tel) h += '<a class="v pri" href="tel:+' + m.tel + '">Call salon</a>';
-    for(const x of primary) h += '<button class="v ' + solid(x.kind) + '" data-a="' + x.a + '" data-id="' + b.id + '" data-ref="' + esc(b.ref) + '">' + x.label + '</button>';
+    for(const x of primary) h += '<button class="v ' + x.kind + '" data-a="' + x.a + '" data-id="' + b.id + '" data-ref="' + esc(b.ref) + '">' + x.label + '</button>';
     if(more.length || (m.tel && !m.callPri))
       h += moreOpen[b.id]
         ? '<button class="vq" data-a="more_close" data-id="' + b.id + '">Fewer</button>'
@@ -421,8 +419,9 @@ async function bookingsView(){
     rec += row('Price', (b.price_mad ?? '?') + ' DH');
     if(m.quote) rec += row('They said', m.quote, 'said');
     rec += row('Status', m.say, 'st');
-    const meta = [esc(b.ref)].concat(m.timer ? [esc(m.timer)] : []).concat(m.ticks ? [esc(m.ticks)] : [])
-      .concat(m.foot ? [esc(m.foot)] : []).join(' · ');
+    const meta = [esc(b.ref)]
+      .concat(m.timer ? ['<span class="' + (m.late ? 'late' : '') + '">' + esc(m.timer) + '</span>'] : [])
+      .concat(m.ticks ? [esc(m.ticks)] : []).concat(m.foot ? [esc(m.foot)] : []).join(' · ');
     return '<div class="q' + (m.mine ? '' : ' quiet') + '">' +
       '<div class="qt">' + first(b.customer_name) +
         '<span class="tw">' + esc(slotStr(b)) + '</span>' +
