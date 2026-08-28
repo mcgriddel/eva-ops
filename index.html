@@ -29,15 +29,17 @@
   /* same card; the accent edge and the solid answer are the only things "your move" adds */
   .q.quiet { border-left:3px solid var(--line); }
   .q.quiet .qt { font-weight:500; color:var(--soft); }
-  .q .qhead { display:flex; align-items:center; gap:9px; }
-  /* ① the stage — closed vocabulary, the anchor every card opens with */
-  .stage { font-size:10.5px; font-weight:700; letter-spacing:.08em; text-transform:uppercase;
-           color:var(--grey); border:1px solid var(--line); border-radius:4px; padding:2px 7px; white-space:nowrap; }
-  .stage.on { color:var(--terra); border-color:var(--terra); }
-  .who { font-weight:650; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .timer { margin-left:auto; color:var(--grey); font-size:12px; white-space:nowrap; }
-  .q .qt { font-size:15.5px; font-weight:600; line-height:1.4; margin-top:8px; }
-  .q .qs { color:var(--soft); font-size:13px; margin-top:5px; }   /* ② the slot, always labelled */
+  /* ① the sentence leads — it names the client, the salon and what is going on, and stands alone.
+     The stage badge rides the right edge: scannable down a column, never in the reading path. */
+  .q .qhead { display:flex; align-items:flex-start; gap:12px; }
+  .q .qt { font-size:15.5px; font-weight:600; line-height:1.4; flex:1; min-width:0; }
+  .stage { flex:none; margin-top:2px; font-size:10.5px; font-weight:700; letter-spacing:.07em; text-transform:uppercase;
+           border:1px solid var(--line); color:var(--grey); border-radius:4px; padding:2px 7px; white-space:nowrap; }
+  .stage.wait   { color:var(--terra); border-color:var(--terra); }          /* the salon still owes an answer */
+  .stage.settle { background:var(--ink); border-color:var(--ink); color:var(--ivory); }  /* the money moment */
+  .stage.good   { color:var(--ok); border-color:#B5D9C4; background:#EAF4EE; }
+  .stage.flat   { color:var(--grey); }
+  .q .qs { color:var(--soft); font-size:13px; margin-top:6px; }   /* ② the slot, always labelled */
   .q .qq { color:var(--soft); font-size:13.5px; margin-top:6px; padding-left:10px; border-left:2px solid var(--line); }
   .q .qh { color:var(--grey); font-size:12px; margin-top:7px; }
   .q .qm { color:var(--grey); font-size:12px; margin-top:9px; display:flex; gap:12px; align-items:baseline; }
@@ -222,7 +224,17 @@ function ticksStr(ping){
 //   ④ at most two answers, the rest behind « More », then the evidence row
 // Only two things change with whose move it is: the terracotta edge and the solid answer.
 
-const STAGE = { WAIT:'Waiting', CONF:'Confirmed', SETTLE:'To settle', CAME:'Came', NOSHOW:'No-show', CANC:'Cancelled', EXP:'Expired' };
+// the stage badge — Mac's own lifecycle words, each with its OWN colour so two live
+// stages never read as the same thing. It rides the right edge, out of the reading path.
+const STAGE = {
+  WAIT:   { t:'To confirm', c:'wait' },
+  CONF:   { t:'Confirmed',  c:'good' },
+  SETTLE: { t:'Attendance', c:'settle' },
+  CAME:   { t:'Came',       c:'good' },
+  NOSHOW: { t:'No-show',    c:'flat' },
+  CANC:   { t:'Cancelled',  c:'flat' },
+  EXP:    { t:'Expired',    c:'flat' },
+};
 const V = (a, label, kind) => ({ a, label, kind: kind || '' });
 
 function slotStr(b){
@@ -251,72 +263,83 @@ function cardOf(b, helpers){
   const { pingOf, lastSalonMsg } = helpers;
   const pend = b.state === 'pending_salon' || b.state === 'received';
   const conf = b.state === 'confirmed' || b.state === 'reminded';
-  const she = (b.party_size || 1) > 1 ? 'they' : 'she';
-  const She = (b.party_size || 1) > 1 ? 'They' : 'She';
+  const many = (b.party_size || 1) > 1;
+  const she = many ? 'they' : 'she';
+  const her = many ? 'their' : 'her';
   const ping = pingOf(b);
   const tel = (b.salons?.owner_whatsapp || '').replace(/\D/g, '');
   const decide = [V('confirm', 'Confirm', 'pri'), V('refuse', 'Refuse', 'dgr')];
   const moreP = [V('propose_open', 'Suggest a change'), V('client_cancel', 'Client cancelled')];
   const attend = [V('showed', 'Came', 'pri'), V('noshow_open', 'No-show', 'dgr')];
   const base = { tel, ref: b.ref };
+  // the first line must stand alone: it names the client, the salon, and what is going on.
+  const who = first(b.customer_name), salon = esc(b.salons?.name || 'the salon');
 
   if(b.needs_review){
     if(b.review_reason === 'salon_reply'){
       const m = lastSalonMsg(b);
       return { ...base, stage: STAGE.WAIT, mine: true, timer: askedStr(b),
-        say: 'The salon wrote back instead of tapping — read it and decide.',
+        say: salon + ' wrote back about ' + who + '’s booking instead of tapping an answer.',
         quote: m ? '« ' + esc((m.body || '').slice(0, 110)) + ' »' : null,
         primary: decide, more: moreP, ticks: ticksStr(ping) };
     }
     if(b.review_reason === 'no_show_claim')
       return { ...base, stage: STAGE.SETTLE, mine: true, timer: passedStr(b),
-        say: 'The salon says ' + she + ' didn’t come.', primary: attend,
+        say: salon + ' says ' + who + ' never came.', primary: attend,
         helper: 'Your answer decides the fee.' };
     if(b.review_reason === 'checkin_conflict')
       return { ...base, stage: STAGE.SETTLE, mine: true, timer: passedStr(b),
-        say: 'The salon says ' + she + ' came. ' + She + ' says ' + (she === 'they' ? 'they didn’t' : 'she didn’t') + '.',
+        say: salon + ' says ' + who + ' came — ' + who + ' says ' + she + ' didn’t.',
         primary: [V('resolve', 'Came', 'pri'), V('noshow_confirm', 'No-show', 'dgr')],
         helper: 'Your answer decides the fee.' };
     if(b.review_reason === 'salon_refused')
       return { ...base, stage: STAGE.CANC, mine: true, timer: null,
-        say: 'The salon refused. The client has been told and offered another day.',
+        say: salon + ' refused ' + who + '’s booking. ' + who + ' has been told and offered another day.',
         primary: [V('resolve', 'OK', 'pri')], more: [] };
-    return { ...base, stage: STAGE.WAIT, mine: true, timer: null, say: 'This one needs a look.',
+    return { ...base, stage: STAGE.WAIT, mine: true, timer: null,
+      say: who + '’s booking at ' + salon + ' needs a look.',
       primary: [V('resolve', 'OK', 'pri')], more: [] };
   }
 
   if(pend){
     if(slotPassed(b)) return { ...base, stage: STAGE.WAIT, mine: true, timer: passedStr(b),
-      say: 'The slot came and went with no answer from the salon.',
+      say: who + '’s slot came and went and ' + salon + ' never answered.',
       primary: decide, more: moreP, ticks: ticksStr(ping), foot: 'the sweep will expire it soon' };
     if(!b.salon_pinged_at) return { ...base, stage: STAGE.WAIT, mine: true, timer: askedStr(b),
-      say: 'This salon has no WhatsApp — ask them yourself, then answer here.',
+      say: salon + ' has no WhatsApp — ask them about ' + who + '’s booking, then answer here.',
       primary: decide, more: moreP };
     if(ping?.wa_error) return { ...base, stage: STAGE.WAIT, mine: true, timer: askedStr(b),
-      say: 'WhatsApp couldn’t reach the salon. Call them, then answer here.',
+      say: 'WhatsApp couldn’t reach ' + salon + ' about ' + who + '’s booking. Call them, then answer here.',
       callPri: true, primary: decide, more: moreP, ticks: 'ping failed' };
     if(ageMin(b.created_at) > 15) return { ...base, stage: STAGE.WAIT, mine: true, timer: askedStr(b),
-      say: 'The salon still hasn’t answered.', primary: decide, more: moreP, ticks: ticksStr(ping) };
+      say: salon + ' still hasn’t answered about ' + who + '’s booking.',
+      primary: decide, more: moreP, ticks: ticksStr(ping) };
     return { ...base, stage: STAGE.WAIT, mine: false, timer: askedStr(b),
-      say: 'The salon has been asked. Waiting for them to tap Confirm.',
+      say: 'Waiting for ' + salon + ' to confirm ' + who + '’s booking.',
       primary: decide, more: moreP, ticks: ticksStr(ping) };
   }
 
   if(conf){
     if(slotPassed(b)) return { ...base, stage: STAGE.SETTLE, mine: true, timer: passedStr(b),
-      say: 'Did ' + she + ' come?', primary: attend, helper: 'Fee applies only if ' + she + ' came.',
-      foot: b.checkin_sent_at && !b.client_checkin ? 'the client was asked too — her answer also settles it' : null };
+      say: 'Did ' + who + ' come to ' + salon + '?', primary: attend,
+      helper: 'Fee applies only if ' + she + ' came.',
+      foot: b.checkin_sent_at && !b.client_checkin ? who + ' was asked too — her answer also settles it' : null };
     return { ...base, stage: STAGE.CONF, mine: false, timer: untilStr(b),
-      say: 'Confirmed. Nothing to do until ' + she + ' arrives.',
+      say: who + ' is confirmed at ' + salon + '.',
       more: [V('salon_cancel', 'Salon cancels'), V('client_cancel', 'Client cancelled')] };
   }
 
-  if(b.state === 'showed') return { ...base, stage: STAGE.CAME, mine: false, say: She + ' came. The fee applies.' };
+  if(b.state === 'showed') return { ...base, stage: STAGE.CAME, mine: false,
+    say: who + ' came to ' + salon + '. The fee applies.' };
   if(b.state === 'no_show') return { ...base, stage: STAGE.NOSHOW, mine: false,
-    say: 'Recorded as a no-show. No fee.' + (b.no_show_reason ? ' Reason: ' + esc(b.no_show_reason) + '.' : '') };
-  if(b.state === 'cancelled') return { ...base, stage: STAGE.CANC, mine: false, say: 'Cancelled. The client has been told.' };
-  if(b.state === 'expired') return { ...base, stage: STAGE.EXP, mine: false, say: 'Expired — the salon never answered in time.' };
-  return { ...base, stage: esc(b.state), mine: false, say: '' };
+    say: who + ' never came to ' + salon + '. No fee.',
+    foot: b.no_show_reason ? 'reason: ' + esc(b.no_show_reason) : null };
+  if(b.state === 'cancelled') return { ...base, stage: STAGE.CANC, mine: false,
+    say: who + '’s booking at ' + salon + ' was cancelled.' };
+  if(b.state === 'expired') return { ...base, stage: STAGE.EXP, mine: false,
+    say: who + '’s booking at ' + salon + ' expired — no answer in time.' };
+  return { ...base, stage: { t: esc(b.state), c: 'flat' }, mine: false,
+    say: who + '’s booking at ' + salon + '.' };
 }
 
 function verbsHtml(b, m){
@@ -406,13 +429,13 @@ async function bookingsView(){
     const m = model.get(b.id), t = tl(b);
     const facts = esc(b.deals?.service_name || '?') + teamStr(b) +
       ((b.party_size || 1) > 1 ? ' · ' + b.party_size + ' pers.' : '') + ' · ' + (b.price_mad ?? '?') + ' DH';
-    const meta = [esc(b.ref)].concat(m.ticks ? [esc(m.ticks)] : []).concat(m.foot ? [esc(m.foot)] : []).join(' · ');
+    // the clock, the receipt and the ref are supporting evidence — they belong together, at the end
+    const meta = (m.timer ? [esc(m.timer)] : []).concat(m.ticks ? [esc(m.ticks)] : [])
+      .concat(m.foot ? [esc(m.foot)] : []).concat([esc(b.ref)]).join(' · ');
     return '<div class="q' + (m.mine ? '' : ' quiet') + '">' +
-      '<div class="qhead"><span class="stage' + (m.mine ? ' on' : '') + '">' + esc(m.stage) + '</span>' +
-        '<span class="who">' + first(b.customer_name) + ' → ' + esc(b.salons?.name || '?') + '</span>' +
-        (m.timer ? '<span class="timer">' + esc(m.timer) + '</span>' : '') + '</div>' +
-      '<div class="qs">Slot: ' + esc(slotStr(b)) + ' · ' + facts + '</div>' +
-      (m.say ? '<div class="qt">' + m.say + '</div>' : '') +
+      '<div class="qhead"><div class="qt">' + m.say + '</div>' +
+        '<span class="stage ' + m.stage.c + '">' + esc(m.stage.t) + '</span></div>' +
+      '<div class="qs">Booked for ' + esc(slotStr(b)) + ' · ' + facts + '</div>' +
       (m.quote ? '<div class="qq">' + m.quote + '</div>' : '') +
       (proposeOpen[b.id] ? proposeEditor(b) : verbsHtml(b, m)) +
       (m.helper ? '<div class="qh">' + m.helper + '</div>' : '') +
