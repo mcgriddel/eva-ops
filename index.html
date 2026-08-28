@@ -24,7 +24,8 @@
   .sect .tb { margin-left:auto; }
 
   /* question — the primitive. The only accented element on the page. */
-  .q { background:#fff; border:1px solid var(--line); border-left:3px solid var(--terra); border-radius:10px; padding:14px 16px; margin-bottom:10px; }
+  .q { background:#fff; border:1px solid var(--line); border-left:3px solid var(--terra); border-radius:10px; padding:13px 16px; margin-bottom:10px; }
+  .q .qhead { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
   .q .qt { font-size:15.5px; font-weight:600; line-height:1.4; }
   .q .qs { color:var(--soft); font-size:13px; margin-top:3px; }
   .q .qh { color:var(--grey); font-size:12px; margin-top:7px; }
@@ -32,10 +33,14 @@
   .zen { background:#fff; border:1px solid var(--line); border-radius:10px; padding:16px; color:var(--soft); font-size:14.5px; }
   .zen b { color:var(--ok); }
 
-  /* verbs — bare, outlined, uniform */
+  /* verbs — the pre-rebuild palette: solid ink yes · hairline terracotta no · ink-outline mid */
   .verbs { display:flex; gap:8px; margin-top:11px; flex-wrap:wrap; align-items:center; }
-  .v { display:inline-flex; align-items:center; justify-content:center; border:1.5px solid var(--ink); background:#fff; color:var(--ink); border-radius:9px; padding:9px 18px; font-weight:650; font-size:14px; min-height:40px; cursor:pointer; font-family:inherit; text-decoration:none; transition:background .15s; }
+  .v { display:inline-flex; align-items:center; justify-content:center; border:1.5px solid var(--ink); background:#fff; color:var(--ink); border-radius:9px; padding:9px 18px; font-weight:650; font-size:14px; min-height:40px; cursor:pointer; font-family:inherit; text-decoration:none; transition:background .15s, border-color .15s, opacity .15s; }
   .v:hover { background:var(--paper); }
+  .v.pri { background:var(--ink); border-color:var(--ink); color:var(--ivory); }
+  .v.pri:hover { background:var(--ink); opacity:.85; }
+  .v.dgr { border-color:var(--line); color:var(--terra); }
+  .v.dgr:hover { background:#fff; border-color:var(--terra); }
   .vq { border:0; background:none; color:var(--soft); font-size:13px; font-weight:600; text-decoration:underline; text-underline-offset:3px; cursor:pointer; padding:9px 4px; font-family:inherit; }
   .tb { border:0; background:none; color:var(--grey); font-size:12px; font-weight:600; text-decoration:underline; text-underline-offset:3px; cursor:pointer; padding:0; font-family:inherit; }
 
@@ -224,92 +229,86 @@ function chip(b){
   return { t: esc(b.state), act: false };
 }
 
-// the primitive: a machine-generated question in plain words, or null
+// the primitive: a machine-generated question in plain words, or null.
+// The card header already says when · who → where, so the sentence uses pronouns.
 function questionOf(b, helpers){
   const { pingOf, lastSalonMsg } = helpers;
-  const salon = esc(b.salons?.name || 'The salon');
-  const client = first(b.customer_name);
-  const svc = esc(b.deals?.service_name || '');
-  const when = whenStr(b) || 'today';
   const pend = b.state === 'pending_salon' || b.state === 'received';
+  const she = (b.party_size || 1) > 1 ? 'they' : 'she';
+  const sub = esc(b.deals?.service_name || '') + ((b.party_size || 1) > 1 ? ' · ' + b.party_size + ' pers.' : '') + ' · ' + (b.price_mad ?? '?') + ' DH';
 
   if(b.needs_review){
     if(b.review_reason === 'salon_reply'){
       const m = lastSalonMsg(b);
-      return { at: b.salon_reply_at || b.updated_at, text: salon + ' answered about ' + client + '’s ' + svc.toLowerCase() + ' ' + when + '.',
-        sub: m ? '« ' + esc((m.body || '').slice(0, 90)) + ' »' : null,
-        verbs: [mkV('confirm', 'Confirm'), mkV('refuse', 'Refuse'), mkQ('propose_open', 'Suggest a change')],
-        meta: 'their answer, in their words' };
+      return { at: b.salon_reply_at || b.updated_at, text: 'The salon answered:',
+        sub: m ? '« ' + esc((m.body || '').slice(0, 90)) + ' »' : sub,
+        verbs: [mkV('confirm', 'Confirm', 'pri'), mkV('refuse', 'Refuse', 'dgr'), mkQ('propose_open', 'Suggest a change')] };
     }
     if(b.review_reason === 'no_show_claim'){
-      return { at: b.updated_at, text: salon + ' says ' + client + ' didn’t come. True?',
-        sub: svc + ' · ' + when + ' · ' + (b.price_mad ?? '?') + ' DH',
-        verbs: [mkV('showed', 'She came'), mkV('noshow_open', 'No-show')],
+      return { at: b.updated_at, text: 'The salon says ' + she + ' didn’t come. True?', sub,
+        verbs: [mkV('showed', 'Came', 'pri'), mkV('noshow_open', 'No-show', 'dgr')],
         helper: 'This decides the fee.' };
     }
     if(b.review_reason === 'checkin_conflict'){
-      return { at: b.updated_at, text: salon + ' says came — ' + client + ' says she didn’t. Who’s right?',
-        sub: svc + ' · ' + when,
-        verbs: [mkV('resolve', 'She came'), mkV('noshow_confirm', 'No-show')],
+      return { at: b.updated_at, text: 'The salon says came — ' + she + ' says no. Who’s right?', sub,
+        verbs: [mkV('resolve', 'Came', 'pri'), mkV('noshow_confirm', 'No-show', 'dgr')],
         helper: 'This decides the fee.' };
     }
     if(b.review_reason === 'salon_refused'){
-      return { at: b.updated_at, text: salon + ' refused ' + client + '’s ' + when + ' booking.',
+      return { at: b.updated_at, text: 'The salon refused this booking.',
         sub: 'The client was told and offered another day.',
-        verbs: [mkV('resolve', 'OK')] };
+        verbs: [mkV('resolve', 'OK', 'pri')] };
     }
-    return { at: b.updated_at, text: 'Booking ' + esc(b.ref) + ' needs a look.', verbs: [mkV('resolve', 'OK')] };
+    return { at: b.updated_at, text: 'Needs a look.', verbs: [mkV('resolve', 'OK', 'pri')] };
   }
 
   if(pend){
     const ping = pingOf(b);
     const tel = (b.salons?.owner_whatsapp || '').replace(/\D/g, '');
     const callV = tel ? { tel } : null;
-    if(slotPassed(b)) return { at: b.created_at, text: client + '’s ' + (b.slot_time ? hh(b.slot_time) : '') + ' slot passed — no answer from ' + salon + '.',
-      sub: svc + (b.party_size > 1 ? ' · ' + b.party_size + ' pers.' : ''),
-      verbs: [mkV('confirm', 'Confirm'), mkV('refuse', 'Refuse'), mkQ('propose_open', 'Suggest a change'), mkQ('client_cancel', 'Client cancelled')], call: callV,
+    if(slotPassed(b)) return { at: b.created_at, text: 'The slot passed — no answer from the salon.', sub,
+      verbs: [mkV('confirm', 'Confirm', 'pri'), mkV('refuse', 'Refuse', 'dgr'), mkQ('propose_open', 'Suggest a change'), mkQ('client_cancel', 'Client cancelled')], call: callV,
       meta: 'the sweep will expire it soon' };
-    if(!b.salon_pinged_at) return { at: b.created_at, text: salon + ' has no WhatsApp — ask them about ' + client + '’s ' + when + ' ' + svc.toLowerCase() + '.',
-      verbs: [mkV('confirm', 'Confirm'), mkV('refuse', 'Refuse'), mkQ('propose_open', 'Suggest a change'), mkQ('client_cancel', 'Client cancelled')],
+    if(!b.salon_pinged_at) return { at: b.created_at, text: 'The salon has no WhatsApp — ask them, then answer:', sub,
+      verbs: [mkV('confirm', 'Confirm', 'pri'), mkV('refuse', 'Refuse', 'dgr'), mkQ('propose_open', 'Suggest a change'), mkQ('client_cancel', 'Client cancelled')],
       meta: 'asked you ' + ageLabel(ageMin(b.created_at)) + ' ago' };
-    if(ping?.wa_error) return { at: b.created_at, text: 'Couldn’t reach ' + salon + ' on WhatsApp about ' + client + '’s ' + when + ' booking.',
-      sub: 'Call them, then answer:',
-      verbs: [mkV('confirm', 'Confirm'), mkV('refuse', 'Refuse'), mkQ('client_cancel', 'Client cancelled')], call: callV,
+    if(ping?.wa_error) return { at: b.created_at, text: 'Couldn’t reach the salon on WhatsApp — call them, then answer:', sub,
+      verbs: [mkV('confirm', 'Confirm', 'pri'), mkV('refuse', 'Refuse', 'dgr'), mkQ('client_cancel', 'Client cancelled')], call: callV,
       meta: 'ping failed' };
-    if(ageMin(b.created_at) > 15) return { at: b.created_at, text: salon + ' hasn’t answered about ' + client + '’s ' + when + ' ' + svc.toLowerCase() + '.',
-      verbs: [mkV('confirm', 'Confirm'), mkV('refuse', 'Refuse'), mkQ('propose_open', 'Suggest a change'), mkQ('client_cancel', 'Client cancelled')], call: callV,
+    if(ageMin(b.created_at) > 15) return { at: b.created_at, text: 'The salon hasn’t answered.', sub,
+      verbs: [mkV('confirm', 'Confirm', 'pri'), mkV('refuse', 'Refuse', 'dgr'), mkQ('propose_open', 'Suggest a change'), mkQ('client_cancel', 'Client cancelled')], call: callV,
       meta: 'asked ' + ageLabel(ageMin(b.created_at)) + ' ago' + (ticksStr(ping) ? ' · ' + ticksStr(ping) : '') };
-    return null; // young pending → ledger only, the machine is on it
+    return null; // young pending → quiet card, the machine is on it
   }
 
   if((b.state === 'confirmed' || b.state === 'reminded') && slotPassed(b)){
-    return { at: b.slot_date + 'T' + (b.slot_time || '23:00'), text: 'Did ' + client + ' come to ' + salon + '?',
-      sub: svc + ' · ' + (b.slot_time ? hh(b.slot_time) : 'today') + ' · ' + (b.price_mad ?? '?') + ' DH',
-      verbs: [mkV('showed', 'Came'), mkV('noshow_open', 'No-show')],
+    return { at: b.slot_date + 'T' + (b.slot_time || '23:00'), text: 'Did ' + she + ' come?', sub,
+      verbs: [mkV('showed', 'Came', 'pri'), mkV('noshow_open', 'No-show', 'dgr')],
       helper: 'Fee applies only if came.',
       meta: b.checkin_sent_at && !b.client_checkin ? 'client was asked too — her tap also settles it' : null };
   }
   return null;
 }
-const mkV = (a, label) => ({ a, label, quiet: false });
+const mkV = (a, label, kind) => ({ a, label, quiet: false, kind: kind || '' });
 const mkQ = (a, label) => ({ a, label, quiet: true });
 
 function verbsHtml(b, verbs, call){
+  // boxed answers first, the phone escape with them, quiet links trail — never interleaved
   let h = '<div class="verbs">';
-  for(const x of verbs){
-    if(x.quiet) h += '<button class="vq" data-a="' + x.a + '" data-id="' + b.id + '" data-ref="' + esc(b.ref) + '">' + x.label + '</button>';
-    else h += '<button class="v" data-a="' + x.a + '" data-id="' + b.id + '" data-ref="' + esc(b.ref) + '">' + x.label + '</button>';
-  }
+  for(const x of verbs) if(!x.quiet)
+    h += '<button class="v' + (x.kind ? ' ' + x.kind : '') + '" data-a="' + x.a + '" data-id="' + b.id + '" data-ref="' + esc(b.ref) + '">' + x.label + '</button>';
   if(call?.tel) h += '<a class="v" href="tel:+' + call.tel + '">Call salon</a>';
+  for(const x of verbs) if(x.quiet)
+    h += '<button class="vq" data-a="' + x.a + '" data-id="' + b.id + '" data-ref="' + esc(b.ref) + '">' + x.label + '</button>';
   h += '</div>';
-  if(noShowOpen[b.id]) h += '<div class="verbs"><input data-nsr="' + b.id + '" placeholder="reason (optional)" style="max-width:240px;margin:0"><button class="v" data-a="noshow_confirm" data-id="' + b.id + '">Save no-show</button></div>';
+  if(noShowOpen[b.id]) h += '<div class="verbs"><input data-nsr="' + b.id + '" placeholder="reason (optional)" style="max-width:240px;margin:0"><button class="v dgr" data-a="noshow_confirm" data-id="' + b.id + '">Save no-show</button></div>';
   return h;
 }
 function proposeEditor(b){
   return '<div class="verbs" style="align-items:center">' +
     '<span class="muted">new time</span><input type="time" data-time="' + b.id + '" value="' + esc((b.slot_time || '').slice(0,5)) + '" style="width:112px;margin:0">' +
     '<span class="muted">people</span><input type="number" min="1" max="6" value="' + (b.party_size || 1) + '" data-party="' + b.id + '" style="width:58px;margin:0">' +
-    '<button class="v" data-a="propose" data-id="' + b.id + '">Send offer</button>' +
+    '<button class="v pri" data-a="propose" data-id="' + b.id + '">Send offer</button>' +
     '<button class="vq" data-a="propose_back" data-id="' + b.id + '">back</button></div>' +
     '<div class="qh">The client gets the offer on WhatsApp and decides.</div>';
 }
@@ -365,8 +364,10 @@ async function bookingsView(){
   const askTop = questions.filter(({ b }) => !isConf(b));
   const topIds = new Set(askTop.map(q => q.b.id));
   const liveRows = (bks || []).filter(b => live.includes(b.state) && !topIds.has(b.id)).sort(bySlot);
+  // Done reads as the day's outcomes in the order they happened — not a schedule
   const doneRows = (bks || []).filter(b => !live.includes(b.state) &&
-    (b.slot_date === today || new Date(b.updated_at).toLocaleDateString('en-CA', { timeZone: TZ }) === today)).sort(bySlot);
+    (b.slot_date === today || new Date(b.updated_at).toLocaleDateString('en-CA', { timeZone: TZ }) === today))
+    .sort((a, c) => String(a.updated_at).localeCompare(String(c.updated_at)));
   const archiveCount = (bks || []).length;
   document.getElementById('bookBadge').innerHTML = questions.length ? '<span class="badge">' + questions.length + '</span>' : '';
 
@@ -387,6 +388,8 @@ async function bookingsView(){
 
   function qCard(b, qu){
     return '<div class="q">' +
+      '<div class="qhead"><span class="when">' + (whenStr(b) || '—') + '</span>' +
+      '<span class="whostr">' + first(b.customer_name) + ' → ' + esc(b.salons?.name || '?') + '</span></div>' +
       '<div class="qt">' + qu.text + '</div>' +
       (qu.sub ? '<div class="qs">' + qu.sub + '</div>' : '') +
       (proposeOpen[b.id] ? proposeEditor(b) : verbsHtml(b, qu.verbs, qu.call)) +
@@ -422,10 +425,9 @@ async function bookingsView(){
   function ledgerRow(b, tlist, mode){
     const c = chip(b);
     const chipHtml = c.html ? c.t : esc(c.t);
-    // a cancelled/expired slot never happened — say so, or "tomorrow" in Done reads absurd
-    const was = (b.state === 'cancelled' || b.state === 'expired') && mode !== 'live';
+    // Done rows carry no schedule time — the outcome is the point; the slot lives in the detail
     let h2 = '<div class="lrow" data-x="' + b.id + '">' +
-      '<span class="when">' + (was ? '<span class="muted" style="font-weight:400">was</span> ' : '') + (whenStr(b) || '—') + '</span>' +
+      (mode === 'done' ? '' : '<span class="when">' + (whenStr(b) || '—') + '</span>') +
       '<span class="whostr">' + first(b.customer_name) + ' → ' + esc(b.salons?.name || '?') + '</span>' +
       '<span class="chip' + (c.act ? ' act' : '') + '">' + chipHtml + '</span></div>';
     if(expandOpen[b.id]){
@@ -435,8 +437,8 @@ async function bookingsView(){
       // the jump-in: Live holds no question-carrying bookings, so verbs here never duplicate a card
       if(mode === 'live'){
         if(pend) acts = '<div class="verbs">' +
-          '<button class="v" data-a="confirm" data-id="' + b.id + '">Confirm</button>' +
-          '<button class="v" data-a="refuse" data-id="' + b.id + '">Refuse</button>' +
+          '<button class="v pri" data-a="confirm" data-id="' + b.id + '">Confirm</button>' +
+          '<button class="v dgr" data-a="refuse" data-id="' + b.id + '">Refuse</button>' +
           '<button class="vq" data-a="propose_open" data-id="' + b.id + '">Suggest a change</button>' +
           '<button class="vq" data-a="client_cancel" data-id="' + b.id + '" data-ref="' + esc(b.ref) + '">Client cancelled</button></div>' +
           (proposeOpen[b.id] ? proposeEditor(b) : '');
@@ -444,7 +446,9 @@ async function bookingsView(){
           '<button class="vq" data-a="salon_cancel" data-id="' + b.id + '">Salon cancels</button>' +
           '<button class="vq" data-a="client_cancel" data-id="' + b.id + '" data-ref="' + esc(b.ref) + '">Client cancelled</button></div>';
       }
-      h2 += '<div class="ldetail"><div class="facts">' + esc(b.deals?.service_name || '?') + teamStr(b) +
+      h2 += '<div class="ldetail"><div class="facts">' +
+        (mode === 'done' ? '<span class="muted">' + (whenStr(b) || '—') + '</span> · ' : '') +
+        esc(b.deals?.service_name || '?') + teamStr(b) +
         ((b.party_size || 1) > 1 ? ' · ' + b.party_size + ' pers.' : '') + ' · ' + (b.price_mad ?? '?') + ' DH · +' + esc(b.customer_phone) +
         ' · <span class="muted">' + esc(b.ref) + '</span>' +
         (b.no_show_reason ? ' · <span class="muted">no-show: ' + esc(b.no_show_reason) + '</span>' : '') + '</div>' +
