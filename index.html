@@ -44,6 +44,7 @@
   .lcard { background:#fff; border:1px solid var(--line); border-radius:10px; overflow:hidden; }
   .lrow { display:flex; align-items:center; gap:8px; padding:13px 16px; cursor:pointer; }
   .lrow:hover { background:var(--ivory); }
+  .ledger .q { margin-bottom:0; } /* flex gap already spaces an in-Live question card */
   .lrow .when { font-variant-numeric:tabular-nums; font-weight:650; white-space:nowrap; }
   .lrow .whostr { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .lrow .chip { margin-left:auto; color:var(--grey); font-size:12.5px; white-space:nowrap; }
@@ -355,11 +356,15 @@ async function bookingsView(){
   // the whole page reads chronologically — questions too
   const qKey = ({ b, qu }) => b.slot_date ? b.slot_date + 'T' + (b.slot_time || '00:00') : String(qu.at);
   questions.sort((a, c) => qKey(a).localeCompare(qKey(c)));
-  const qIds = new Set(questions.map(q => q.b.id));
+  const qById = new Map(questions.map(q => [q.b.id, q.qu]));
+  const isConf = b => b.state === 'confirmed' || b.state === 'reminded';
   const live = ['pending_salon', 'received', 'confirmed', 'reminded'];
   const bySlot = (a, c) => String(a.slot_date || '9').localeCompare(String(c.slot_date || '9')) || String(a.slot_time || '').localeCompare(String(c.slot_time || ''));
-  // a booking lives in exactly ONE place: asking → Needs you, quiet → Live, finished → Done
-  const liveRows = (bks || []).filter(b => live.includes(b.state) && !qIds.has(b.id)).sort(bySlot);
+  // questions shout in their stage: pre-confirmation asks in Needs you;
+  // a confirmed booking asks in place, inside Live (attendance, conflicts)
+  const askTop = questions.filter(({ b }) => !isConf(b));
+  const topIds = new Set(askTop.map(q => q.b.id));
+  const liveRows = (bks || []).filter(b => live.includes(b.state) && !topIds.has(b.id)).sort(bySlot);
   const doneRows = (bks || []).filter(b => !live.includes(b.state) &&
     (b.slot_date === today || new Date(b.updated_at).toLocaleDateString('en-CA', { timeZone: TZ }) === today)).sort(bySlot);
   const archiveCount = (bks || []).length;
@@ -380,14 +385,8 @@ async function bookingsView(){
 
   let h = '';
 
-  // ① the questions — the only thing that ever asks anything
-  h += '<div class="sect"><h2>Needs you</h2>' + (questions.length ? '<span class="muted">' + questions.length + '</span>' : '') + '</div>';
-  if(!questions.length){
-    const running = liveRows.length;
-    h += '<div class="zen"><b>✓</b> Nothing needs you' + (running ? ' — ' + running + ' booking' + (running > 1 ? 's' : '') + ' running on ' + (running > 1 ? 'their' : 'its') + ' own.' : '.') + '</div>';
-  }
-  for(const { b, qu } of questions){
-    h += '<div class="q">' +
+  function qCard(b, qu){
+    return '<div class="q">' +
       '<div class="qt">' + qu.text + '</div>' +
       (qu.sub ? '<div class="qs">' + qu.sub + '</div>' : '') +
       (proposeOpen[b.id] ? proposeEditor(b) : verbsHtml(b, qu.verbs, qu.call)) +
@@ -396,9 +395,19 @@ async function bookingsView(){
       '</div>';
   }
 
-  // ② live — quiet rows, machine driving; jump-in on expand (only when no question card is already asking)
+  // ① Needs you — bookings still getting to confirmed (and case reviews)
+  if(askTop.length){
+    h += '<div class="sect"><h2>Needs you</h2><span class="muted">' + askTop.length + '</span></div>';
+    for(const { b, qu } of askTop) h += qCard(b, qu);
+  } else if(!questions.length){
+    h += '<div class="sect"><h2>Needs you</h2></div>';
+    const running = liveRows.length;
+    h += '<div class="zen"><b>✓</b> Nothing needs you' + (running ? ' — ' + running + ' booking' + (running > 1 ? 's' : '') + ' running on ' + (running > 1 ? 'their' : 'its') + ' own.' : '.') + '</div>';
+  } // questions only inside Live → no empty Needs-you shell above them
+
+  // ② Live — the day's bookings in time order; a confirmed one asks in place when it must
   h += '<div class="sect"><h2>Live</h2>' + (liveRows.length ? '<span class="muted">' + liveRows.length + '</span>' : '') + '</div>';
-  h += liveRows.length ? '<div class="ledger">' + liveRows.map(b => ledgerRow(b, tl(b), 'live')).join('') + '</div>'
+  h += liveRows.length ? '<div class="ledger">' + liveRows.map(b => qById.has(b.id) && isConf(b) ? qCard(b, qById.get(b.id)) : ledgerRow(b, tl(b), 'live')).join('') + '</div>'
     : '<p class="muted">No live bookings.</p>';
 
   // ③ done — finished outcomes; read-only, archive behind it
@@ -413,8 +422,10 @@ async function bookingsView(){
   function ledgerRow(b, tlist, mode){
     const c = chip(b);
     const chipHtml = c.html ? c.t : esc(c.t);
+    // a cancelled/expired slot never happened — say so, or "tomorrow" in Done reads absurd
+    const was = (b.state === 'cancelled' || b.state === 'expired') && mode !== 'live';
     let h2 = '<div class="lrow" data-x="' + b.id + '">' +
-      '<span class="when">' + (whenStr(b) || '—') + '</span>' +
+      '<span class="when">' + (was ? '<span class="muted" style="font-weight:400">was</span> ' : '') + (whenStr(b) || '—') + '</span>' +
       '<span class="whostr">' + first(b.customer_name) + ' → ' + esc(b.salons?.name || '?') + '</span>' +
       '<span class="chip' + (c.act ? ' act' : '') + '">' + chipHtml + '</span></div>';
     if(expandOpen[b.id]){
