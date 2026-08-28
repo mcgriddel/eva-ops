@@ -30,6 +30,7 @@
   .q.quiet { border-left:3px solid var(--line); }
   /* the booking as a labelled record: the client names it, the fields spell it out. */
   .q .qt { display:flex; align-items:baseline; gap:10px; font-size:17px; font-weight:600; line-height:1.3; }
+  .q .qt .tw { font-size:14px; font-weight:500; color:var(--soft); font-variant-numeric:tabular-nums; }
   .q .qt .tel { margin-left:auto; font-size:13px; font-weight:500; color:var(--grey); text-decoration:none; white-space:nowrap; }
   .q .qt .tel:hover { color:var(--ink); text-decoration:underline; }
   .rec { display:grid; grid-template-columns:auto 1fr; gap:5px 14px; margin-top:11px; font-size:14px; align-items:baseline; }
@@ -269,59 +270,59 @@ function cardOf(b, helpers){
   if(b.needs_review){
     if(b.review_reason === 'salon_reply'){
       const m = lastSalonMsg(b);
-      return { ...base, mine: true, timer: askedStr(b),
+      return { ...base, sect: 'confirm', mine: true, timer: askedStr(b),
         say: 'The salon wrote back instead of tapping.',
         quote: m ? '« ' + esc((m.body || '').slice(0, 110)) + ' »' : null,
         primary: decide, more: moreP, ticks: ticksStr(ping) };
     }
     if(b.review_reason === 'no_show_claim')
-      return { ...base, mine: true, timer: passedStr(b),
+      return { ...base, sect: 'settle', mine: true, timer: passedStr(b),
         say: 'The salon says ' + she + ' never came.', primary: attend,
         helper: 'Your answer decides the fee.' };
     if(b.review_reason === 'checkin_conflict')
-      return { ...base, mine: true, timer: passedStr(b),
+      return { ...base, sect: 'settle', mine: true, timer: passedStr(b),
         say: 'The salon says ' + she + ' came — ' + she + ' says not.',
         primary: [V('resolve', 'Came', 'pri'), V('noshow_confirm', 'No-show', 'dgr')],
         helper: 'Your answer decides the fee.' };
     if(b.review_reason === 'salon_refused')
-      return { ...base, mine: true, timer: null,
+      return { ...base, sect: 'done', mine: true, timer: null,
         say: 'The salon refused. She has been told and offered another day.',
         primary: [V('resolve', 'OK', 'pri')], more: [] };
-    return { ...base, mine: true, timer: null, say: 'Needs a look.',
+    return { ...base, sect: 'confirm', mine: true, timer: null, say: 'Needs a look.',
       primary: [V('resolve', 'OK', 'pri')], more: [] };
   }
 
   if(pend){
-    if(slotPassed(b)) return { ...base, mine: true, timer: passedStr(b),
+    if(slotPassed(b)) return { ...base, sect: 'confirm', mine: true, timer: passedStr(b),
       say: 'The slot passed and the salon never answered.',
       primary: decide, more: moreP, ticks: ticksStr(ping), foot: 'the sweep will expire it soon' };
-    if(!b.salon_pinged_at) return { ...base, mine: true, timer: askedStr(b),
+    if(!b.salon_pinged_at) return { ...base, sect: 'confirm', mine: true, timer: askedStr(b),
       say: 'This salon has no WhatsApp — ask them, then answer here.',
       primary: decide, more: moreP };
-    if(ping?.wa_error) return { ...base, mine: true, timer: askedStr(b),
+    if(ping?.wa_error) return { ...base, sect: 'confirm', mine: true, timer: askedStr(b),
       say: 'WhatsApp couldn’t reach the salon. Call them, then answer here.',
       callPri: true, primary: decide, more: moreP, ticks: 'ping failed' };
-    if(ageMin(b.created_at) > 15) return { ...base, mine: true, timer: askedStr(b),
+    if(ageMin(b.created_at) > 15) return { ...base, sect: 'confirm', mine: true, timer: askedStr(b),
       say: 'The salon still hasn’t answered.', primary: decide, more: moreP, ticks: ticksStr(ping) };
-    return { ...base, mine: false, timer: askedStr(b),
+    return { ...base, sect: 'confirm', mine: false, timer: askedStr(b),
       say: 'Waiting for the salon to confirm.', primary: decide, more: moreP, ticks: ticksStr(ping) };
   }
 
   if(conf){
-    if(slotPassed(b)) return { ...base, mine: true, timer: passedStr(b),
+    if(slotPassed(b)) return { ...base, sect: 'settle', mine: true, timer: passedStr(b),
       say: 'Did ' + she + ' come?', primary: attend,
       helper: 'Fee applies only if ' + she + ' came.',
       foot: b.checkin_sent_at && !b.client_checkin ? 'the client was asked too — her answer also settles it' : null };
-    return { ...base, mine: false, timer: untilStr(b), say: 'Confirmed. Nothing to do until ' + she + ' arrives.',
+    return { ...base, sect: 'confirmed', mine: false, timer: untilStr(b), say: 'Confirmed. Nothing to do until ' + she + ' arrives.',
       more: [V('salon_cancel', 'Salon cancels'), V('client_cancel', 'Client cancelled')] };
   }
 
-  if(b.state === 'showed') return { ...base, mine: false, say: 'Came — the fee applies.' };
-  if(b.state === 'no_show') return { ...base, mine: false, say: 'No-show — no fee.',
+  if(b.state === 'showed') return { ...base, sect: 'done', mine: false, say: 'Came — the fee applies.' };
+  if(b.state === 'no_show') return { ...base, sect: 'done', mine: false, say: 'No-show — no fee.',
     foot: b.no_show_reason ? 'reason: ' + esc(b.no_show_reason) : null };
-  if(b.state === 'cancelled') return { ...base, mine: false, say: 'Cancelled.' };
-  if(b.state === 'expired') return { ...base, mine: false, say: 'Expired — the salon never answered in time.' };
-  return { ...base, mine: false, say: esc(b.state) };
+  if(b.state === 'cancelled') return { ...base, sect: 'done', mine: false, say: 'Cancelled.' };
+  if(b.state === 'expired') return { ...base, sect: 'done', mine: false, say: 'Expired — the salon never answered in time.' };
+  return { ...base, sect: 'done', mine: false, say: esc(b.state) };
 }
 
 function verbsHtml(b, m){
@@ -395,17 +396,19 @@ async function bookingsView(){
   const model = new Map();
   for(const b of (bks || [])) model.set(b.id, cardOf(b, helpers));
 
-  // one booking, one place. Questions shout in their stage: pre-confirmation ones rise to
-  // « Needs you », a confirmed booking asks in place inside « Live ».
-  const needsYou = (bks || []).filter(b => model.get(b.id).mine && !isConf(b)).sort(bySlot);
-  const inNeeds = new Set(needsYou.map(b => b.id));
-  const liveRows = (bks || []).filter(b => live.includes(b.state) && !inNeeds.has(b.id)).sort(bySlot);
-  const doneRows = (bks || []).filter(b => !live.includes(b.state) && !inNeeds.has(b.id) &&
-    (b.slot_date === today || new Date(b.updated_at).toLocaleDateString('en-CA', { timeZone: TZ }) === today))
+  // SECTIONS ARE THE LIFECYCLE, held honest by one invariant:
+  // two cards offering the same buttons ALWAYS sit in the same section. Urgency is NOT a section —
+  // it shows inside the card (terracotta edge, the status line, the timer).
+  const inSect = k => (bks || []).filter(b => model.get(b.id).sect === k).sort(bySlot);
+  const toConfirm = inSect('confirm');
+  const confirmed = inSect('confirmed');
+  const toSettle = inSect('settle');
+  const done = inSect('done').filter(b => b.slot_date === today ||
+      new Date(b.updated_at).toLocaleDateString('en-CA', { timeZone: TZ }) === today)
     .sort((a, c) => String(a.updated_at).localeCompare(String(c.updated_at)));
-  const askingCount = (bks || []).filter(b => model.get(b.id).mine).length;
+  const yours = (bks || []).filter(b => model.get(b.id).mine).length;
   const archiveCount = (bks || []).length;
-  document.getElementById('bookBadge').innerHTML = askingCount ? '<span class="badge">' + askingCount + '</span>' : '';
+  document.getElementById('bookBadge').innerHTML = yours ? '<span class="badge">' + yours + '</span>' : '';
 
   function card(b){
     const m = model.get(b.id), t = tl(b);
@@ -415,7 +418,6 @@ async function bookingsView(){
     rec += row('Service', esc(b.deals?.service_name || '?') + teamStr(b) +
       ((b.party_size || 1) > 1 ? ' · ' + b.party_size + ' pers.' : ''));
     rec += row('Salon', esc(b.salons?.name || '?'));
-    rec += row('When', esc(slotStr(b)));
     rec += row('Price', (b.price_mad ?? '?') + ' DH');
     if(m.quote) rec += row('They said', m.quote, 'said');
     rec += row('Status', m.say, 'st');
@@ -423,6 +425,7 @@ async function bookingsView(){
       .concat(m.foot ? [esc(m.foot)] : []).join(' · ');
     return '<div class="q' + (m.mine ? '' : ' quiet') + '">' +
       '<div class="qt">' + first(b.customer_name) +
+        '<span class="tw">' + esc(slotStr(b)) + '</span>' +
         (phone ? '<a class="tel" href="tel:+' + phone + '">' + esc(telStr(phone)) + '</a>' : '') + '</div>' +
       '<dl class="rec">' + rec + '</dl>' +
       (proposeOpen[b.id] ? proposeEditor(b) : verbsHtml(b, m)) +
@@ -443,17 +446,19 @@ async function bookingsView(){
     return;
   }
 
+  const running = toConfirm.length + confirmed.length + toSettle.length;
   let h = '';
-  h += '<div class="sect"><h2>Needs you</h2>' + (needsYou.length ? '<span class="muted">' + needsYou.length + '</span>' : '') + '</div>';
-  h += needsYou.length ? needsYou.map(card).join('')
-    : '<div class="zen"><b>✓</b> Nothing needs you' + (liveRows.length ? ' — ' + liveRows.length + ' booking' + (liveRows.length > 1 ? 's' : '') + ' running on ' + (liveRows.length > 1 ? 'their' : 'its') + ' own.' : '.') + '</div>';
-
-  h += '<div class="sect"><h2>Live</h2>' + (liveRows.length ? '<span class="muted">' + liveRows.length + '</span>' : '') + '</div>';
-  h += liveRows.length ? liveRows.map(card).join('') : '<p class="muted">No live bookings.</p>';
-
-  h += '<div class="sect"><h2>Done</h2>' + (doneRows.length ? '<span class="muted">' + doneRows.length + '</span>' : '') +
-    '<button class="tb" data-arch="on" style="margin-left:auto">Archive →</button></div>';
-  h += doneRows.length ? doneRows.map(card).join('') : '<p class="muted">Nothing finished yet today.</p>';
+  if(!yours) h += '<div class="zen"><b>✓</b> Nothing needs you' +
+    (running ? ' — ' + running + ' booking' + (running > 1 ? 's' : '') + ' running on ' + (running > 1 ? 'their' : 'its') + ' own.' : ' today.') + '</div>';
+  const section = (title, rows, empty, extra) =>
+    '<div class="sect"><h2>' + title + '</h2>' + (rows.length ? '<span class="muted">' + rows.length + '</span>' : '') +
+      (extra || '') + '</div>' +
+    (rows.length ? rows.map(card).join('') : '<p class="muted">' + empty + '</p>');
+  h += section('To confirm', toConfirm, 'Nothing waiting on a salon.');
+  h += section('Confirmed', confirmed, 'Nothing booked ahead.');
+  h += section('Did they come?', toSettle, 'Nothing to settle.');
+  h += section('Done', done, 'Nothing finished yet today.',
+    '<button class="tb" data-arch="on" style="margin-left:auto">Archive →</button>');
 
   app.innerHTML = h;
   wire();
