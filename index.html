@@ -23,15 +23,22 @@
   .sect .muted { font-size:12px; }
   .sect .tb { margin-left:auto; }
 
-  /* question — the primitive. The only accented element on the page. */
+  /* THE card — one component for every booking, in every section. */
   /* padding-left 14 + the 3px terracotta edge = the quiet card's 16 + 1px hairline: text lines up */
   .q { background:#fff; border:1px solid var(--line); border-left:3px solid var(--terra); border-radius:10px; padding:13px 16px 13px 14px; margin-bottom:10px; }
-  /* same card; the accent edge and the solid answer are the only things a question adds */
+  /* same card; the accent edge and the solid answer are the only things "your move" adds */
   .q.quiet { border-left:3px solid var(--line); }
   .q.quiet .qt { font-weight:500; color:var(--soft); }
-  .q .qhead { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
-  .q .qt { font-size:15.5px; font-weight:600; line-height:1.4; }
-  .q .qs { color:var(--soft); font-size:13px; margin-top:3px; }
+  .q .qhead { display:flex; align-items:center; gap:9px; }
+  /* ① the stage — closed vocabulary, the anchor every card opens with */
+  .stage { font-size:10.5px; font-weight:700; letter-spacing:.08em; text-transform:uppercase;
+           color:var(--grey); border:1px solid var(--line); border-radius:4px; padding:2px 7px; white-space:nowrap; }
+  .stage.on { color:var(--terra); border-color:var(--terra); }
+  .who { font-weight:650; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .timer { margin-left:auto; color:var(--grey); font-size:12px; white-space:nowrap; }
+  .q .qt { font-size:15.5px; font-weight:600; line-height:1.4; margin-top:8px; }
+  .q .qs { color:var(--soft); font-size:13px; margin-top:5px; }   /* ② the slot, always labelled */
+  .q .qq { color:var(--soft); font-size:13.5px; margin-top:6px; padding-left:10px; border-left:2px solid var(--line); }
   .q .qh { color:var(--grey); font-size:12px; margin-top:7px; }
   .q .qm { color:var(--grey); font-size:12px; margin-top:9px; display:flex; gap:12px; align-items:baseline; }
   .zen { background:#fff; border:1px solid var(--line); border-radius:10px; padding:16px; color:var(--soft); font-size:14.5px; }
@@ -47,23 +54,6 @@
   .v.dgr:hover { background:#fff; border-color:var(--terra); }
   .vq { border:0; background:none; color:var(--soft); font-size:13px; font-weight:600; text-decoration:underline; text-underline-offset:3px; cursor:pointer; padding:9px 4px; font-family:inherit; }
   .tb { border:0; background:none; color:var(--grey); font-size:12px; font-weight:600; text-decoration:underline; text-underline-offset:3px; cursor:pointer; padding:0; font-family:inherit; }
-
-  /* live/done — quiet cards, same skin as the questions, never the accent */
-  .ledger { display:flex; flex-direction:column; gap:10px; }
-  .lcard { background:#fff; border:1px solid var(--line); border-radius:10px; overflow:hidden; }
-  .lrow { display:block; padding:13px 16px; cursor:pointer; }
-  .lrow:hover { background:var(--ivory); }
-  .lrow .ltop { display:flex; align-items:center; gap:8px; }
-  .ledger .q { margin-bottom:0; } /* flex gap already spaces an in-Live question card */
-  /* header vocabulary — identical wherever a card header appears, question or quiet */
-  .when { font-variant-numeric:tabular-nums; font-weight:650; white-space:nowrap; }
-  .whostr { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .chip { margin-left:auto; color:var(--grey); font-size:12.5px; white-space:nowrap; }
-  .chip.act { color:var(--soft); font-weight:600; }
-  .chip .okmk { color:var(--ok); }
-  .ldetail { border-top:1px solid var(--line); padding:12px 16px; cursor:default; }
-  .ldetail .facts { font-size:13.5px; }
-  .ldetail .verbs { margin-top:9px; }
 
   .tl { border-left:2px solid var(--line); margin:8px 0 2px; padding-left:10px; display:flex; flex-direction:column; gap:3px; }
   .tl div { color:var(--grey); font-size:12px; }
@@ -114,7 +104,7 @@ const app = document.getElementById('app');
 let tab = 'bookings', session = null, timer = null, openPhone = null, historyQuery = '', archiveMode = false;
 const proposeOpen = {}; // booking id → the "suggest a change" editor is open
 const noShowOpen = {};  // booking id → the no-show reason input is open
-const expandOpen = {};  // booking id → ledger row detail is open
+const moreOpen = {};    // booking id → the secondary actions are revealed
 const tlOpen = {};      // booking id → conversation shown inside question/detail
 let undoTimer = null;
 
@@ -191,7 +181,7 @@ function threadView(phone, msgs){
   };
 }
 
-// ————— TODAY: the machine asks questions; everything else is a quiet ledger —————
+// ————— TODAY: one card per booking, whatever its state —————
 
 const TZ = 'Africa/Casablanca';
 const TODAY = () => new Date().toLocaleDateString('en-CA', { timeZone: TZ });
@@ -224,107 +214,131 @@ function ticksStr(ping){
 }
 
 // the closed status vocabulary — one chip per state, never a sentence
-function chip(b){
-  const pend = b.state === 'pending_salon' || b.state === 'received';
-  if(pend) return { t: 'Waiting for salon · ' + ageLabel(ageMin(b.created_at)), act: ageMin(b.created_at) > 15 };
-  if(b.state === 'confirmed' || b.state === 'reminded') return { t: 'Confirmed', act: false };
-  if(b.state === 'showed') return { t: '<span class="okmk">Came ✓</span>', act: false, html: true };
-  if(b.state === 'no_show') return { t: 'No-show', act: false };
-  if(b.state === 'cancelled') return { t: 'Cancelled', act: false };
-  if(b.state === 'expired') return { t: 'Expired', act: false };
-  return { t: esc(b.state), act: false };
-}
+// ————— ONE CARD MODEL for every booking on the page —————
+// Four fixed zones, always in this order, whatever the state:
+//   ① stage chip (closed vocabulary — the stable anchor) · who → salon · the clock that matters now
+//   ② the slot, always labelled, plus what was booked
+//   ③ one plain sentence saying what is happening
+//   ④ at most two answers, the rest behind « More », then the evidence row
+// Only two things change with whose move it is: the terracotta edge and the solid answer.
 
-// the primitive: a machine-generated question in plain words, or null.
-// The card header already says when · who → where, so the sentence uses pronouns.
-function questionOf(b, helpers){
+const STAGE = { WAIT:'Waiting', CONF:'Confirmed', SETTLE:'To settle', CAME:'Came', NOSHOW:'No-show', CANC:'Cancelled', EXP:'Expired' };
+const V = (a, label, kind) => ({ a, label, kind: kind || '' });
+
+function slotStr(b){
+  if(!b.slot_date) return 'no slot set';
+  const d = b.slot_date === TODAY() ? 'today' : b.slot_date === TOMORROW() ? 'tomorrow'
+    : new Date(b.slot_date + 'T12:00:00').toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short' });
+  return d + (b.slot_time ? ' ' + hh(b.slot_time) : '');
+}
+function untilStr(b){
+  if(!b.slot_date || !b.slot_time) return null;
+  const m = Math.round((new Date(b.slot_date + 'T' + b.slot_time) - Date.now()) / 60000);
+  if(m < 0) return null;
+  if(m < 60) return 'starts in ' + m + 'm';
+  const h = Math.floor(m / 60);
+  if(h < 24) return 'starts in ' + h + 'h' + String(m % 60).padStart(2, '0');
+  return 'starts in ' + Math.round(h / 24) + ' day' + (Math.round(h / 24) > 1 ? 's' : '');
+}
+function passedStr(b){
+  if(!b.slot_date) return null;
+  const m = Math.round((Date.now() - new Date(b.slot_date + 'T' + (b.slot_time || '23:59'))) / 60000);
+  return m > 0 ? 'slot passed ' + ageLabel(m) + ' ago' : null;
+}
+const askedStr = b => 'asked ' + ageLabel(ageMin(b.created_at)) + ' ago';
+
+function cardOf(b, helpers){
   const { pingOf, lastSalonMsg } = helpers;
   const pend = b.state === 'pending_salon' || b.state === 'received';
+  const conf = b.state === 'confirmed' || b.state === 'reminded';
   const she = (b.party_size || 1) > 1 ? 'they' : 'she';
-  const sub = esc(b.deals?.service_name || '') + ((b.party_size || 1) > 1 ? ' · ' + b.party_size + ' pers.' : '') + ' · ' + (b.price_mad ?? '?') + ' DH';
+  const She = (b.party_size || 1) > 1 ? 'They' : 'She';
+  const ping = pingOf(b);
+  const tel = (b.salons?.owner_whatsapp || '').replace(/\D/g, '');
+  const decide = [V('confirm', 'Confirm', 'pri'), V('refuse', 'Refuse', 'dgr')];
+  const moreP = [V('propose_open', 'Suggest a change'), V('client_cancel', 'Client cancelled')];
+  const attend = [V('showed', 'Came', 'pri'), V('noshow_open', 'No-show', 'dgr')];
+  const base = { tel, ref: b.ref };
 
   if(b.needs_review){
     if(b.review_reason === 'salon_reply'){
       const m = lastSalonMsg(b);
-      return { at: b.salon_reply_at || b.updated_at, text: 'The salon answered:',
-        sub: m ? '« ' + esc((m.body || '').slice(0, 90)) + ' »' : sub,
-        verbs: [mkV('confirm', 'Confirm', 'pri'), mkV('refuse', 'Refuse', 'dgr'), mkQ('propose_open', 'Suggest a change')] };
+      return { ...base, stage: STAGE.WAIT, mine: true, timer: askedStr(b),
+        say: 'The salon wrote back instead of tapping — read it and decide.',
+        quote: m ? '« ' + esc((m.body || '').slice(0, 110)) + ' »' : null,
+        primary: decide, more: moreP, ticks: ticksStr(ping) };
     }
-    if(b.review_reason === 'no_show_claim'){
-      return { at: b.updated_at, text: 'The salon says ' + she + ' didn’t come. True?', sub,
-        verbs: [mkV('showed', 'Came', 'pri'), mkV('noshow_open', 'No-show', 'dgr')],
-        helper: 'This decides the fee.' };
-    }
-    if(b.review_reason === 'checkin_conflict'){
-      return { at: b.updated_at, text: 'The salon says came — ' + she + ' says no. Who’s right?', sub,
-        verbs: [mkV('resolve', 'Came', 'pri'), mkV('noshow_confirm', 'No-show', 'dgr')],
-        helper: 'This decides the fee.' };
-    }
-    if(b.review_reason === 'salon_refused'){
-      return { at: b.updated_at, text: 'The salon refused this booking.',
-        sub: 'The client was told and offered another day.',
-        verbs: [mkV('resolve', 'OK', 'pri')] };
-    }
-    return { at: b.updated_at, text: 'Needs a look.', verbs: [mkV('resolve', 'OK', 'pri')] };
+    if(b.review_reason === 'no_show_claim')
+      return { ...base, stage: STAGE.SETTLE, mine: true, timer: passedStr(b),
+        say: 'The salon says ' + she + ' didn’t come.', primary: attend,
+        helper: 'Your answer decides the fee.' };
+    if(b.review_reason === 'checkin_conflict')
+      return { ...base, stage: STAGE.SETTLE, mine: true, timer: passedStr(b),
+        say: 'The salon says ' + she + ' came. ' + She + ' says ' + (she === 'they' ? 'they didn’t' : 'she didn’t') + '.',
+        primary: [V('resolve', 'Came', 'pri'), V('noshow_confirm', 'No-show', 'dgr')],
+        helper: 'Your answer decides the fee.' };
+    if(b.review_reason === 'salon_refused')
+      return { ...base, stage: STAGE.CANC, mine: true, timer: null,
+        say: 'The salon refused. The client has been told and offered another day.',
+        primary: [V('resolve', 'OK', 'pri')], more: [] };
+    return { ...base, stage: STAGE.WAIT, mine: true, timer: null, say: 'This one needs a look.',
+      primary: [V('resolve', 'OK', 'pri')], more: [] };
   }
 
   if(pend){
-    const ping = pingOf(b);
-    const tel = (b.salons?.owner_whatsapp || '').replace(/\D/g, '');
-    const callV = tel ? { tel } : null;
-    if(slotPassed(b)) return { at: b.created_at, text: 'The slot passed — no answer from the salon.', sub,
-      verbs: [mkV('confirm', 'Confirm', 'pri'), mkV('refuse', 'Refuse', 'dgr'), mkQ('propose_open', 'Suggest a change'), mkQ('client_cancel', 'Client cancelled')], call: callV,
-      meta: 'the sweep will expire it soon' };
-    if(!b.salon_pinged_at) return { at: b.created_at, text: 'The salon has no WhatsApp — ask them, then answer:', sub,
-      verbs: [mkV('confirm', 'Confirm', 'pri'), mkV('refuse', 'Refuse', 'dgr'), mkQ('propose_open', 'Suggest a change'), mkQ('client_cancel', 'Client cancelled')],
-      meta: 'asked you ' + ageLabel(ageMin(b.created_at)) + ' ago' };
-    if(ping?.wa_error) return { at: b.created_at, text: 'Couldn’t reach the salon on WhatsApp — call them, then answer:', sub,
-      verbs: [mkV('confirm', 'Confirm', 'pri'), mkV('refuse', 'Refuse', 'dgr'), mkQ('client_cancel', 'Client cancelled')], call: callV,
-      meta: 'ping failed' };
-    if(ageMin(b.created_at) > 15) return { at: b.created_at, text: 'The salon hasn’t answered.', sub,
-      verbs: [mkV('confirm', 'Confirm', 'pri'), mkV('refuse', 'Refuse', 'dgr'), mkQ('propose_open', 'Suggest a change'), mkQ('client_cancel', 'Client cancelled')], call: callV,
-      meta: 'asked ' + ageLabel(ageMin(b.created_at)) + ' ago' + (ticksStr(ping) ? ' · ' + ticksStr(ping) : '') };
-    return null; // young pending → quiet card, the machine is on it
+    if(slotPassed(b)) return { ...base, stage: STAGE.WAIT, mine: true, timer: passedStr(b),
+      say: 'The slot came and went with no answer from the salon.',
+      primary: decide, more: moreP, ticks: ticksStr(ping), foot: 'the sweep will expire it soon' };
+    if(!b.salon_pinged_at) return { ...base, stage: STAGE.WAIT, mine: true, timer: askedStr(b),
+      say: 'This salon has no WhatsApp — ask them yourself, then answer here.',
+      primary: decide, more: moreP };
+    if(ping?.wa_error) return { ...base, stage: STAGE.WAIT, mine: true, timer: askedStr(b),
+      say: 'WhatsApp couldn’t reach the salon. Call them, then answer here.',
+      callPri: true, primary: decide, more: moreP, ticks: 'ping failed' };
+    if(ageMin(b.created_at) > 15) return { ...base, stage: STAGE.WAIT, mine: true, timer: askedStr(b),
+      say: 'The salon still hasn’t answered.', primary: decide, more: moreP, ticks: ticksStr(ping) };
+    return { ...base, stage: STAGE.WAIT, mine: false, timer: askedStr(b),
+      say: 'The salon has been asked. Waiting for them to tap Confirm.',
+      primary: decide, more: moreP, ticks: ticksStr(ping) };
   }
 
-  if((b.state === 'confirmed' || b.state === 'reminded') && slotPassed(b)){
-    return { at: b.slot_date + 'T' + (b.slot_time || '23:00'), text: 'Did ' + she + ' come?', sub,
-      verbs: [mkV('showed', 'Came', 'pri'), mkV('noshow_open', 'No-show', 'dgr')],
-      helper: 'Fee applies only if came.',
-      meta: b.checkin_sent_at && !b.client_checkin ? 'client was asked too — her tap also settles it' : null };
+  if(conf){
+    if(slotPassed(b)) return { ...base, stage: STAGE.SETTLE, mine: true, timer: passedStr(b),
+      say: 'Did ' + she + ' come?', primary: attend, helper: 'Fee applies only if ' + she + ' came.',
+      foot: b.checkin_sent_at && !b.client_checkin ? 'the client was asked too — her answer also settles it' : null };
+    return { ...base, stage: STAGE.CONF, mine: false, timer: untilStr(b),
+      say: 'Confirmed. Nothing to do until ' + she + ' arrives.',
+      more: [V('salon_cancel', 'Salon cancels'), V('client_cancel', 'Client cancelled')] };
   }
-  return null;
-}
-const mkV = (a, label, kind) => ({ a, label, quiet: false, kind: kind || '' });
-const mkQ = (a, label) => ({ a, label, quiet: true });
 
-// the quiet twin of questionOf: same card, plain statement instead of a question,
-// outlined verbs instead of a solid answer — the machine is driving, but you can always step in
-function statementOf(b, helpers){
-  const ping = helpers.pingOf(b);
-  const tel = (b.salons?.owner_whatsapp || '').replace(/\D/g, '');
-  const call = tel ? { tel } : null;
-  const sub = esc(b.deals?.service_name || '') + ((b.party_size || 1) > 1 ? ' · ' + b.party_size + ' pers.' : '') + ' · ' + (b.price_mad ?? '?') + ' DH';
-  const ref = '<span class="muted">' + esc(b.ref) + '</span>';
-  if(b.state === 'pending_salon' || b.state === 'received'){
-    return { text: 'Waiting for the salon to answer.', sub, call,
-      verbs: [mkV('confirm', 'Confirm'), mkV('refuse', 'Refuse'), mkQ('propose_open', 'Suggest a change'), mkQ('client_cancel', 'Client cancelled')],
-      meta: ref + ' · asked ' + ageLabel(ageMin(b.created_at)) + ' ago' + (ticksStr(ping) ? ' · ' + ticksStr(ping) : '') };
-  }
-  return { text: (b.party_size || 1) > 1 ? 'Confirmed — they’re expected.' : 'Confirmed — she’s expected.', sub, call,
-    verbs: [mkQ('salon_cancel', 'Salon cancels'), mkQ('client_cancel', 'Client cancelled')],
-    meta: ref };
+  if(b.state === 'showed') return { ...base, stage: STAGE.CAME, mine: false, say: She + ' came. The fee applies.' };
+  if(b.state === 'no_show') return { ...base, stage: STAGE.NOSHOW, mine: false,
+    say: 'Recorded as a no-show. No fee.' + (b.no_show_reason ? ' Reason: ' + esc(b.no_show_reason) + '.' : '') };
+  if(b.state === 'cancelled') return { ...base, stage: STAGE.CANC, mine: false, say: 'Cancelled. The client has been told.' };
+  if(b.state === 'expired') return { ...base, stage: STAGE.EXP, mine: false, say: 'Expired — the salon never answered in time.' };
+  return { ...base, stage: esc(b.state), mine: false, say: '' };
 }
 
-function verbsHtml(b, verbs, call){
-  // boxed answers first, the phone escape with them, quiet links trail — never interleaved
-  let h = '<div class="verbs">';
-  for(const x of verbs) if(!x.quiet)
-    h += '<button class="v' + (x.kind ? ' ' + x.kind : '') + '" data-a="' + x.a + '" data-id="' + b.id + '" data-ref="' + esc(b.ref) + '">' + x.label + '</button>';
-  if(call?.tel) h += '<a class="v" href="tel:+' + call.tel + '">Call salon</a>';
-  for(const x of verbs) if(x.quiet)
-    h += '<button class="vq" data-a="' + x.a + '" data-id="' + b.id + '" data-ref="' + esc(b.ref) + '">' + x.label + '</button>';
-  h += '</div>';
+function verbsHtml(b, m){
+  const primary = m.primary || [], more = m.more || [];
+  const solid = k => m.mine ? k : ''; // the solid answer is reserved for cards that are your move
+  let h = '';
+  if(primary.length || more.length || m.callPri){
+    h += '<div class="verbs">';
+    if(m.callPri && m.tel) h += '<a class="v pri" href="tel:+' + m.tel + '">Call salon</a>';
+    for(const x of primary) h += '<button class="v ' + solid(x.kind) + '" data-a="' + x.a + '" data-id="' + b.id + '" data-ref="' + esc(b.ref) + '">' + x.label + '</button>';
+    if(more.length || (m.tel && !m.callPri))
+      h += moreOpen[b.id]
+        ? '<button class="vq" data-a="more_close" data-id="' + b.id + '">Fewer</button>'
+        : '<button class="vq" data-a="more_open" data-id="' + b.id + '">More…</button>';
+    h += '</div>';
+  }
+  if(moreOpen[b.id]){
+    h += '<div class="verbs">';
+    if(m.tel && !m.callPri) h += '<a class="v" href="tel:+' + m.tel + '">Call salon</a>';
+    for(const x of more) h += '<button class="v" data-a="' + x.a + '" data-id="' + b.id + '" data-ref="' + esc(b.ref) + '">' + x.label + '</button>';
+    h += '</div>';
+  }
   if(noShowOpen[b.id]) h += '<div class="verbs"><input data-nsr="' + b.id + '" placeholder="reason (optional)" style="max-width:240px;margin:0"><button class="v dgr" data-a="noshow_confirm" data-id="' + b.id + '">Save no-show</button></div>';
   return h;
 }
@@ -369,124 +383,81 @@ async function bookingsView(){
     lastSalonMsg: b => tl(b).filter(m => m.party === 'salon' && m.direction === 'in').pop(),
   };
   const today = TODAY();
-
-  // questions + ledger membership
-  const questions = [];
-  for(const b of (bks || [])){
-    const qu = questionOf(b, helpers);
-    if(qu) questions.push({ b, qu });
-  }
-  // the whole page reads chronologically — questions too
-  const qKey = ({ b, qu }) => b.slot_date ? b.slot_date + 'T' + (b.slot_time || '00:00') : String(qu.at);
-  questions.sort((a, c) => qKey(a).localeCompare(qKey(c)));
-  const qById = new Map(questions.map(q => [q.b.id, q.qu]));
-  const isConf = b => b.state === 'confirmed' || b.state === 'reminded';
   const live = ['pending_salon', 'received', 'confirmed', 'reminded'];
+  const isConf = b => b.state === 'confirmed' || b.state === 'reminded';
   const bySlot = (a, c) => String(a.slot_date || '9').localeCompare(String(c.slot_date || '9')) || String(a.slot_time || '').localeCompare(String(c.slot_time || ''));
-  // questions shout in their stage: pre-confirmation asks in Needs you;
-  // a confirmed booking asks in place, inside Live (attendance, conflicts)
-  const askTop = questions.filter(({ b }) => !isConf(b));
-  const topIds = new Set(askTop.map(q => q.b.id));
-  const liveRows = (bks || []).filter(b => live.includes(b.state) && !topIds.has(b.id)).sort(bySlot);
-  // Done reads as the day's outcomes in the order they happened — not a schedule
-  const doneRows = (bks || []).filter(b => !live.includes(b.state) &&
+
+  const model = new Map();
+  for(const b of (bks || [])) model.set(b.id, cardOf(b, helpers));
+
+  // one booking, one place. Questions shout in their stage: pre-confirmation ones rise to
+  // « Needs you », a confirmed booking asks in place inside « Live ».
+  const needsYou = (bks || []).filter(b => model.get(b.id).mine && !isConf(b)).sort(bySlot);
+  const inNeeds = new Set(needsYou.map(b => b.id));
+  const liveRows = (bks || []).filter(b => live.includes(b.state) && !inNeeds.has(b.id)).sort(bySlot);
+  const doneRows = (bks || []).filter(b => !live.includes(b.state) && !inNeeds.has(b.id) &&
     (b.slot_date === today || new Date(b.updated_at).toLocaleDateString('en-CA', { timeZone: TZ }) === today))
     .sort((a, c) => String(a.updated_at).localeCompare(String(c.updated_at)));
+  const askingCount = (bks || []).filter(b => model.get(b.id).mine).length;
   const archiveCount = (bks || []).length;
-  document.getElementById('bookBadge').innerHTML = questions.length ? '<span class="badge">' + questions.length + '</span>' : '';
+  document.getElementById('bookBadge').innerHTML = askingCount ? '<span class="badge">' + askingCount + '</span>' : '';
+
+  function card(b){
+    const m = model.get(b.id), t = tl(b);
+    const facts = esc(b.deals?.service_name || '?') + teamStr(b) +
+      ((b.party_size || 1) > 1 ? ' · ' + b.party_size + ' pers.' : '') + ' · ' + (b.price_mad ?? '?') + ' DH';
+    const meta = [esc(b.ref)].concat(m.ticks ? [esc(m.ticks)] : []).concat(m.foot ? [esc(m.foot)] : []).join(' · ');
+    return '<div class="q' + (m.mine ? '' : ' quiet') + '">' +
+      '<div class="qhead"><span class="stage' + (m.mine ? ' on' : '') + '">' + esc(m.stage) + '</span>' +
+        '<span class="who">' + first(b.customer_name) + ' → ' + esc(b.salons?.name || '?') + '</span>' +
+        (m.timer ? '<span class="timer">' + esc(m.timer) + '</span>' : '') + '</div>' +
+      '<div class="qs">Slot: ' + esc(slotStr(b)) + ' · ' + facts + '</div>' +
+      (m.say ? '<div class="qt">' + m.say + '</div>' : '') +
+      (m.quote ? '<div class="qq">' + m.quote + '</div>' : '') +
+      (proposeOpen[b.id] ? proposeEditor(b) : verbsHtml(b, m)) +
+      (m.helper ? '<div class="qh">' + m.helper + '</div>' : '') +
+      '<div class="qm">' + (meta ? '<span>' + meta + '</span>' : '') + timelineHtml(b, t) + '</div>' +
+      '</div>';
+  }
 
   if(archiveMode){
-    let h = '<button class="act ghost" data-arch="off">← Back to today</button>' +
-      '<div class="sect"><h2>Archive</h2><span class="muted">' + archiveCount + ' bookings, newest first</span></div>' +
-      '<input id="hq" placeholder="search name, salon, ref, phone…" value="' + esc(historyQuery) + '" style="margin-bottom:10px">';
     const qs = historyQuery.trim().toLowerCase();
-    const shown = qs ? (bks || []).filter(b => [b.ref, b.customer_name, b.customer_phone, b.salons?.name, b.deals?.service_name].some(x => (x || '').toLowerCase().includes(qs))) : (bks || []).slice(0, 30);
-    h += '<div class="ledger">' + shown.map(b => ledgerRow(b, tl(b), 'archive')).join('') + '</div>';
-    if(!qs && archiveCount > 30) h += '<p class="muted" style="text-align:center;margin-top:10px">' + (archiveCount - 30) + ' more — search to find them.</p>';
-    app.innerHTML = h;
+    const shown = qs ? (bks || []).filter(b => [b.ref, b.customer_name, b.customer_phone, b.salons?.name, b.deals?.service_name].some(x => (x || '').toLowerCase().includes(qs))) : (bks || []).slice(0, 20);
+    app.innerHTML = '<button class="act ghost" data-arch="off">← Back to today</button>' +
+      '<div class="sect"><h2>Archive</h2><span class="muted">' + archiveCount + ' bookings, newest first</span></div>' +
+      '<input id="hq" placeholder="search name, salon, ref, phone…" value="' + esc(historyQuery) + '" style="margin-bottom:10px">' +
+      shown.map(card).join('') +
+      (!qs && archiveCount > 20 ? '<p class="muted" style="text-align:center;margin-top:10px">' + (archiveCount - 20) + ' more — search to find them.</p>' : '');
     wire();
     return;
   }
 
   let h = '';
+  h += '<div class="sect"><h2>Needs you</h2>' + (needsYou.length ? '<span class="muted">' + needsYou.length + '</span>' : '') + '</div>';
+  h += needsYou.length ? needsYou.map(card).join('')
+    : '<div class="zen"><b>✓</b> Nothing needs you' + (liveRows.length ? ' — ' + liveRows.length + ' booking' + (liveRows.length > 1 ? 's' : '') + ' running on ' + (liveRows.length > 1 ? 'their' : 'its') + ' own.' : '.') + '</div>';
 
-  // one card for the whole page. `asking` only adds the terracotta edge and the solid answer.
-  function qCard(b, qu, asking){
-    return '<div class="q' + (asking ? '' : ' quiet') + '">' +
-      '<div class="qhead"><span class="when">' + (whenStr(b) || '—') + '</span>' +
-      '<span class="whostr">' + first(b.customer_name) + ' → ' + esc(b.salons?.name || '?') + '</span></div>' +
-      '<div class="qt">' + qu.text + '</div>' +
-      (qu.sub ? '<div class="qs">' + qu.sub + '</div>' : '') +
-      (proposeOpen[b.id] ? proposeEditor(b) : verbsHtml(b, qu.verbs, qu.call)) +
-      (qu.helper ? '<div class="qh">' + qu.helper + '</div>' : '') +
-      '<div class="qm">' + (qu.meta ? '<span>' + qu.meta + '</span>' : '') + timelineHtml(b, tl(b)) + '</div>' +
-      '</div>';
-  }
-
-  // ① Needs you — bookings still getting to confirmed (and case reviews)
-  if(askTop.length){
-    h += '<div class="sect"><h2>Needs you</h2><span class="muted">' + askTop.length + '</span></div>';
-    for(const { b, qu } of askTop) h += qCard(b, qu, true);
-  } else if(!questions.length){
-    h += '<div class="sect"><h2>Needs you</h2></div>';
-    const running = liveRows.length;
-    h += '<div class="zen"><b>✓</b> Nothing needs you' + (running ? ' — ' + running + ' booking' + (running > 1 ? 's' : '') + ' running on ' + (running > 1 ? 'their' : 'its') + ' own.' : '.') + '</div>';
-  } // questions only inside Live → no empty Needs-you shell above them
-
-  // ② Live — the day's bookings in time order; a confirmed one asks in place when it must
   h += '<div class="sect"><h2>Live</h2>' + (liveRows.length ? '<span class="muted">' + liveRows.length + '</span>' : '') + '</div>';
-  h += liveRows.length ? '<div class="ledger">' + liveRows.map(b => qById.has(b.id) && isConf(b)
-      ? qCard(b, qById.get(b.id), true)
-      : qCard(b, statementOf(b, helpers), false)).join('') + '</div>'
-    : '<p class="muted">No live bookings.</p>';
+  h += liveRows.length ? liveRows.map(card).join('') : '<p class="muted">No live bookings.</p>';
 
-  // ③ done — finished outcomes; read-only, archive behind it
   h += '<div class="sect"><h2>Done</h2>' + (doneRows.length ? '<span class="muted">' + doneRows.length + '</span>' : '') +
     '<button class="tb" data-arch="on" style="margin-left:auto">Archive →</button></div>';
-  h += doneRows.length ? '<div class="ledger">' + doneRows.map(b => ledgerRow(b, tl(b), 'done')).join('') + '</div>'
-    : '<p class="muted">Nothing finished yet today.</p>';
+  h += doneRows.length ? doneRows.map(card).join('') : '<p class="muted">Nothing finished yet today.</p>';
 
   app.innerHTML = h;
   wire();
-
-  function ledgerRow(b, tlist, mode){
-    const c = chip(b);
-    const chipHtml = c.html ? c.t : esc(c.t);
-    // same two-line shape as a question card: header line, then the facts line.
-    // Done rows carry no schedule time — the outcome is the point; the slot lives in the detail.
-    let h2 = '<div class="lrow" data-x="' + b.id + '"><div class="ltop">' +
-      (mode === 'done' ? '' : '<span class="when">' + (whenStr(b) || '—') + '</span>') +
-      '<span class="whostr">' + first(b.customer_name) + ' → ' + esc(b.salons?.name || '?') + '</span>' +
-      '<span class="chip' + (c.act ? ' act' : '') + '">' + chipHtml + '</span></div>' +
-      '<div class="qs">' + esc(b.deals?.service_name || '?') + teamStr(b) +
-      ((b.party_size || 1) > 1 ? ' · ' + b.party_size + ' pers.' : '') + ' · ' + (b.price_mad ?? '?') + ' DH</div></div>';
-    if(expandOpen[b.id]){
-      // finished bookings: the face already carries service · people · price, so the detail
-      // adds only what it doesn't — the slot it was for, the phone, the ref, the reason
-      h2 += '<div class="ldetail"><div class="facts">' +
-        (mode === 'done' ? esc(whenStr(b) || '—') + ' · ' : '') + '+' + esc(b.customer_phone) +
-        ' · <span class="muted">' + esc(b.ref) + '</span>' +
-        (b.no_show_reason ? ' · <span class="muted">no-show: ' + esc(b.no_show_reason) + '</span>' : '') + '</div>' +
-        '<div style="margin-top:8px">' + timelineHtml(b, tlist) + '</div></div>';
-    }
-    return '<div class="lcard">' + h2 + '</div>';
-  }
 
   function wire(){
     const hq = document.getElementById('hq');
     if(hq) hq.oninput = () => { historyQuery = hq.value; clearTimeout(hq._t); hq._t = setTimeout(refresh, 350); };
     app.querySelectorAll('[data-arch]').forEach(el => el.onclick = () => { archiveMode = el.dataset.arch === 'on'; historyQuery = ''; refresh(); });
-    app.querySelectorAll('.lrow').forEach(el => el.onclick = (e) => {
-      if(e.target.closest('[data-a]') || e.target.closest('a')) return;
-      const id = el.dataset.x;
-      if(expandOpen[id]) delete expandOpen[id]; else expandOpen[id] = true;
-      refresh();
-    });
     app.querySelectorAll('[data-a]').forEach(el => el.onclick = async (e) => {
       e.stopPropagation();
       const id = el.dataset.id, a = el.dataset.a;
       if(a === 'tl_open'){ tlOpen[id] = true; refresh(); return; }
       if(a === 'tl_close'){ delete tlOpen[id]; refresh(); return; }
+      if(a === 'more_open'){ moreOpen[id] = true; refresh(); return; }
+      if(a === 'more_close'){ delete moreOpen[id]; refresh(); return; }
       if(a === 'propose_open'){ proposeOpen[id] = true; refresh(); return; }
       if(a === 'propose_back'){ delete proposeOpen[id]; refresh(); return; }
       if(a === 'noshow_open'){ noShowOpen[id] = true; refresh(); return; }
@@ -518,7 +489,7 @@ async function bookingsView(){
         const n = app.querySelector('[data-party="' + id + '"]')?.value || undefined;
         await ops({ action:'propose_alternative', booking_id:id, slot_time:t, party_size:n ? +n : undefined });
       }
-      delete proposeOpen[id]; delete noShowOpen[id];
+      delete proposeOpen[id]; delete noShowOpen[id]; delete moreOpen[id];
       refresh();
     });
   }
