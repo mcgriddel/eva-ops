@@ -26,6 +26,9 @@
   /* question — the primitive. The only accented element on the page. */
   /* padding-left 14 + the 3px terracotta edge = the quiet card's 16 + 1px hairline: text lines up */
   .q { background:#fff; border:1px solid var(--line); border-left:3px solid var(--terra); border-radius:10px; padding:13px 16px 13px 14px; margin-bottom:10px; }
+  /* same card; the accent edge and the solid answer are the only things a question adds */
+  .q.quiet { border-left:3px solid var(--line); }
+  .q.quiet .qt { font-weight:500; color:var(--soft); }
   .q .qhead { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
   .q .qt { font-size:15.5px; font-weight:600; line-height:1.4; }
   .q .qs { color:var(--soft); font-size:13px; margin-top:3px; }
@@ -295,6 +298,24 @@ function questionOf(b, helpers){
 const mkV = (a, label, kind) => ({ a, label, quiet: false, kind: kind || '' });
 const mkQ = (a, label) => ({ a, label, quiet: true });
 
+// the quiet twin of questionOf: same card, plain statement instead of a question,
+// outlined verbs instead of a solid answer — the machine is driving, but you can always step in
+function statementOf(b, helpers){
+  const ping = helpers.pingOf(b);
+  const tel = (b.salons?.owner_whatsapp || '').replace(/\D/g, '');
+  const call = tel ? { tel } : null;
+  const sub = esc(b.deals?.service_name || '') + ((b.party_size || 1) > 1 ? ' · ' + b.party_size + ' pers.' : '') + ' · ' + (b.price_mad ?? '?') + ' DH';
+  const ref = '<span class="muted">' + esc(b.ref) + '</span>';
+  if(b.state === 'pending_salon' || b.state === 'received'){
+    return { text: 'Waiting for the salon to answer.', sub, call,
+      verbs: [mkV('confirm', 'Confirm'), mkV('refuse', 'Refuse'), mkQ('propose_open', 'Suggest a change'), mkQ('client_cancel', 'Client cancelled')],
+      meta: ref + ' · asked ' + ageLabel(ageMin(b.created_at)) + ' ago' + (ticksStr(ping) ? ' · ' + ticksStr(ping) : '') };
+  }
+  return { text: (b.party_size || 1) > 1 ? 'Confirmed — they’re expected.' : 'Confirmed — she’s expected.', sub, call,
+    verbs: [mkQ('salon_cancel', 'Salon cancels'), mkQ('client_cancel', 'Client cancelled')],
+    meta: ref };
+}
+
 function verbsHtml(b, verbs, call){
   // boxed answers first, the phone escape with them, quiet links trail — never interleaved
   let h = '<div class="verbs">';
@@ -389,8 +410,9 @@ async function bookingsView(){
 
   let h = '';
 
-  function qCard(b, qu){
-    return '<div class="q">' +
+  // one card for the whole page. `asking` only adds the terracotta edge and the solid answer.
+  function qCard(b, qu, asking){
+    return '<div class="q' + (asking ? '' : ' quiet') + '">' +
       '<div class="qhead"><span class="when">' + (whenStr(b) || '—') + '</span>' +
       '<span class="whostr">' + first(b.customer_name) + ' → ' + esc(b.salons?.name || '?') + '</span></div>' +
       '<div class="qt">' + qu.text + '</div>' +
@@ -404,7 +426,7 @@ async function bookingsView(){
   // ① Needs you — bookings still getting to confirmed (and case reviews)
   if(askTop.length){
     h += '<div class="sect"><h2>Needs you</h2><span class="muted">' + askTop.length + '</span></div>';
-    for(const { b, qu } of askTop) h += qCard(b, qu);
+    for(const { b, qu } of askTop) h += qCard(b, qu, true);
   } else if(!questions.length){
     h += '<div class="sect"><h2>Needs you</h2></div>';
     const running = liveRows.length;
@@ -413,7 +435,9 @@ async function bookingsView(){
 
   // ② Live — the day's bookings in time order; a confirmed one asks in place when it must
   h += '<div class="sect"><h2>Live</h2>' + (liveRows.length ? '<span class="muted">' + liveRows.length + '</span>' : '') + '</div>';
-  h += liveRows.length ? '<div class="ledger">' + liveRows.map(b => qById.has(b.id) && isConf(b) ? qCard(b, qById.get(b.id)) : ledgerRow(b, tl(b), 'live')).join('') + '</div>'
+  h += liveRows.length ? '<div class="ledger">' + liveRows.map(b => qById.has(b.id) && isConf(b)
+      ? qCard(b, qById.get(b.id), true)
+      : qCard(b, statementOf(b, helpers), false)).join('') + '</div>'
     : '<p class="muted">No live bookings.</p>';
 
   // ③ done — finished outcomes; read-only, archive behind it
@@ -437,27 +461,13 @@ async function bookingsView(){
       '<div class="qs">' + esc(b.deals?.service_name || '?') + teamStr(b) +
       ((b.party_size || 1) > 1 ? ' · ' + b.party_size + ' pers.' : '') + ' · ' + (b.price_mad ?? '?') + ' DH</div></div>';
     if(expandOpen[b.id]){
-      const pend = b.state === 'pending_salon' || b.state === 'received';
-      const conf = b.state === 'confirmed' || b.state === 'reminded';
-      let acts = '';
-      // the jump-in: Live holds no question-carrying bookings, so verbs here never duplicate a card
-      if(mode === 'live'){
-        if(pend) acts = '<div class="verbs">' +
-          '<button class="v pri" data-a="confirm" data-id="' + b.id + '">Confirm</button>' +
-          '<button class="v dgr" data-a="refuse" data-id="' + b.id + '">Refuse</button>' +
-          '<button class="vq" data-a="propose_open" data-id="' + b.id + '">Suggest a change</button>' +
-          '<button class="vq" data-a="client_cancel" data-id="' + b.id + '" data-ref="' + esc(b.ref) + '">Client cancelled</button></div>' +
-          (proposeOpen[b.id] ? proposeEditor(b) : '');
-        else if(conf) acts = '<div class="verbs">' +
-          '<button class="vq" data-a="salon_cancel" data-id="' + b.id + '">Salon cancels</button>' +
-          '<button class="vq" data-a="client_cancel" data-id="' + b.id + '" data-ref="' + esc(b.ref) + '">Client cancelled</button></div>';
-      }
-      // the face already carries service · people · price — the detail adds only what it doesn't
+      // finished bookings: the face already carries service · people · price, so the detail
+      // adds only what it doesn't — the slot it was for, the phone, the ref, the reason
       h2 += '<div class="ldetail"><div class="facts">' +
         (mode === 'done' ? esc(whenStr(b) || '—') + ' · ' : '') + '+' + esc(b.customer_phone) +
         ' · <span class="muted">' + esc(b.ref) + '</span>' +
         (b.no_show_reason ? ' · <span class="muted">no-show: ' + esc(b.no_show_reason) + '</span>' : '') + '</div>' +
-        acts + '<div style="margin-top:8px">' + timelineHtml(b, tlist) + '</div></div>';
+        '<div style="margin-top:8px">' + timelineHtml(b, tlist) + '</div></div>';
     }
     return '<div class="lcard">' + h2 + '</div>';
   }
