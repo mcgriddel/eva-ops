@@ -28,10 +28,16 @@
   .q { background:#fff; border:1px solid var(--line); border-left:3px solid var(--terra); border-radius:10px; padding:13px 16px 13px 14px; margin-bottom:10px; }
   /* same card; the accent edge and the solid answer are the only things "your move" adds */
   .q.quiet { border-left:3px solid var(--line); }
-  /* ① title = the booking · ② subtitle = the status. Two lines, two jobs, nothing else on top. */
-  .q .qt { font-size:15.5px; font-weight:600; line-height:1.35; }
-  .q .qsay { font-size:14px; margin-top:4px; color:var(--terra); font-weight:600; }
-  .q.quiet .qsay { color:var(--soft); font-weight:500; }
+  /* the booking as a labelled record: the client names it, the fields spell it out. */
+  .q .qt { display:flex; align-items:baseline; gap:10px; font-size:17px; font-weight:600; line-height:1.3; }
+  .q .qt .tel { margin-left:auto; font-size:13px; font-weight:500; color:var(--grey); text-decoration:none; white-space:nowrap; }
+  .q .qt .tel:hover { color:var(--ink); text-decoration:underline; }
+  .rec { display:grid; grid-template-columns:auto 1fr; gap:5px 14px; margin-top:11px; font-size:14px; align-items:baseline; }
+  .rec dt { font-size:10.5px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--grey); white-space:nowrap; }
+  .rec dd { color:var(--ink); min-width:0; }
+  .rec dd.st { color:var(--terra); font-weight:600; }          /* the status — your move */
+  .q.quiet .rec dd.st { color:var(--soft); font-weight:500; }  /* the machine is driving */
+  .rec dd.said { color:var(--soft); font-style:italic; }
   .q .qq { color:var(--soft); font-size:13.5px; margin-top:6px; padding-left:10px; border-left:2px solid var(--line); }
   .q .qh { color:var(--grey); font-size:12px; margin-top:7px; }
   .q .qm { color:var(--grey); font-size:12px; margin-top:9px; display:flex; gap:12px; align-items:baseline; }
@@ -239,6 +245,13 @@ function passedStr(b){
   return m > 0 ? 'slot passed ' + ageLabel(m) + ' ago' : null;
 }
 const askedStr = b => 'asked ' + ageLabel(ageMin(b.created_at)) + ' ago';
+// +212612345678 → « +212 6 12 34 56 78 » (Moroccan mobiles read in pairs); anything else groups in 3s
+function telStr(raw){
+  const d = String(raw || '').replace(/\D/g, '');
+  if(!d) return '';
+  if(d.startsWith('212') && d.length === 12) return '+212 ' + d[3] + ' ' + d.slice(4).replace(/(\d{2})(?=\d)/g, '$1 ');
+  return '+' + d.replace(/(\d{3})(?=\d)/g, '$1 ');
+}
 
 function cardOf(b, helpers){
   const { pingOf, lastSalonMsg } = helpers;
@@ -396,18 +409,22 @@ async function bookingsView(){
 
   function card(b){
     const m = model.get(b.id), t = tl(b);
-    // ① TITLE — the booking itself: who · what · where · when. Reads on its own.
-    const title = first(b.customer_name) + ' · ' + esc(b.deals?.service_name || '?') +
-      ((b.party_size || 1) > 1 ? ' (' + b.party_size + ' pers.)' : '') +
-      ' · ' + esc(b.salons?.name || '?') + ' · ' + esc(slotStr(b));
-    // ③ everything that is neither the booking nor its status
-    const meta = [(b.price_mad ?? '?') + ' DH'].concat(m.timer ? [esc(m.timer)] : [])
-      .concat(m.ticks ? [esc(m.ticks)] : []).concat(m.foot ? [esc(m.foot)] : [])
-      .concat([esc(b.ref)]).join(' · ');
+    const row = (label, val, cls) => '<dt>' + label + '</dt><dd' + (cls ? ' class="' + cls + '"' : '') + '>' + val + '</dd>';
+    const phone = (b.customer_phone || '').replace(/\D/g, '');
+    let rec = '';
+    rec += row('Service', esc(b.deals?.service_name || '?') + teamStr(b) +
+      ((b.party_size || 1) > 1 ? ' · ' + b.party_size + ' pers.' : ''));
+    rec += row('Salon', esc(b.salons?.name || '?'));
+    rec += row('When', esc(slotStr(b)));
+    rec += row('Price', (b.price_mad ?? '?') + ' DH');
+    if(m.quote) rec += row('They said', m.quote, 'said');
+    rec += row('Status', m.say, 'st');
+    const meta = [esc(b.ref)].concat(m.timer ? [esc(m.timer)] : []).concat(m.ticks ? [esc(m.ticks)] : [])
+      .concat(m.foot ? [esc(m.foot)] : []).join(' · ');
     return '<div class="q' + (m.mine ? '' : ' quiet') + '">' +
-      '<div class="qt">' + title + '</div>' +
-      '<div class="qsay">' + m.say + '</div>' +          // ② SUBTITLE — the status, nothing else
-      (m.quote ? '<div class="qq">' + m.quote + '</div>' : '') +
+      '<div class="qt">' + first(b.customer_name) +
+        (phone ? '<a class="tel" href="tel:+' + phone + '">' + esc(telStr(phone)) + '</a>' : '') + '</div>' +
+      '<dl class="rec">' + rec + '</dl>' +
       (proposeOpen[b.id] ? proposeEditor(b) : verbsHtml(b, m)) +
       (m.helper ? '<div class="qh">' + m.helper + '</div>' : '') +
       '<div class="qm">' + (meta ? '<span>' + meta + '</span>' : '') + timelineHtml(b, t) + '</div>' +
