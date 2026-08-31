@@ -202,7 +202,8 @@ function slotPassed(b){
 const hh = t => (t || '').slice(0,5).replace(':','h');
 const hhmmT = ts => new Date(ts).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
 const ageMin = ts => Math.round((Date.now() - new Date(ts)) / 60000);
-const ageLabel = m => m >= 60 ? Math.floor(m/60) + 'h' + String(m%60).padStart(2,'0') : m + 'm';
+const ageLabel = m => m >= 1440 ? Math.floor(m/1440) + ' day' + (Math.floor(m/1440) > 1 ? 's' : '')
+  : m >= 60 ? Math.floor(m/60) + 'h' + String(m%60).padStart(2,'0') : m + 'm';
 function dayWord(d){
   if(!d) return '';
   if(d === TODAY()) return '';
