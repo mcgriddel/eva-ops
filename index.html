@@ -43,6 +43,13 @@
   .q .qh { color:var(--grey); font-size:12px; margin-top:7px; }
   .q .qm { color:var(--grey); font-size:12px; margin-top:9px; display:flex; gap:12px; align-items:baseline; }
   .zen { background:#fff; border:1px solid var(--line); border-radius:10px; padding:16px; color:var(--soft); font-size:14.5px; }
+  /* Done is the one section that is NOT cards: finished bookings are plain lines */
+  .ln { display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 10px; padding:9px 2px; border-bottom:1px solid var(--line); font-size:13.5px; }
+  .ln .nm { font-weight:600; font-size:15px; }
+  .ln .tw { font-size:13px; color:var(--soft); font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .ln .what { color:var(--grey); flex:1; min-width:90px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .ln .st { font-weight:600; }
+  .ln .ref { color:var(--grey); font-size:12px; white-space:nowrap; }
   .zen b { color:var(--ok); }
 
   /* verbs — the pre-rebuild palette: solid ink yes · hairline terracotta no · ink-outline mid */
@@ -53,8 +60,9 @@
   .v.pri:hover { background:var(--ink); opacity:.85; }
   .v.dgr { border-color:var(--line); color:var(--terra); }
   .v.dgr:hover { background:#fff; border-color:var(--terra); }
+  .v.dis { border-color:var(--line); color:var(--grey); background:#fff; cursor:default; pointer-events:none; }
   .vq { border:0; background:none; color:var(--soft); font-size:13px; font-weight:600; text-decoration:underline; text-underline-offset:3px; cursor:pointer; padding:9px 4px; font-family:inherit; }
-  .tb { border:0; background:none; color:var(--grey); font-size:12px; font-weight:600; text-decoration:underline; text-underline-offset:3px; cursor:pointer; padding:0; font-family:inherit; }
+  .tb { border:0; background:none; color:var(--grey); font-size:12px; font-weight:600; text-decoration:underline; text-underline-offset:3px; cursor:pointer; padding:0; font-family:inherit; white-space:nowrap; }
 
   .tl { border-left:2px solid var(--line); margin:8px 0 2px; padding-left:10px; display:flex; flex-direction:column; gap:3px; }
   .tl div { color:var(--grey); font-size:12px; }
@@ -276,16 +284,16 @@ function cardOf(b, helpers){
         primary: decide, more: moreP, ticks: ticksStr(ping) };
     }
     if(b.review_reason === 'no_show_claim')
-      return { ...base, sect: 'settle', mine: true, timer: passedStr(b),
+      return { ...base, sect: 'settle', mine: true, late: true, timer: passedStr(b),
         say: 'The salon says ' + she + ' never came.', primary: attend,
-        helper: 'Your answer decides the fee.' };
+        helper: 'your answer decides the fee' };
     if(b.review_reason === 'checkin_conflict')
-      return { ...base, sect: 'settle', mine: true, timer: passedStr(b),
+      return { ...base, sect: 'settle', mine: true, late: true, timer: passedStr(b),
         say: 'The salon says ' + she + ' came — ' + she + ' says not.',
         primary: [V('resolve', 'Came', 'pri'), V('noshow_confirm', 'No-show', 'dgr')],
-        helper: 'Your answer decides the fee.' };
+        helper: 'your answer decides the fee' };
     if(b.review_reason === 'salon_refused')
-      return { ...base, sect: 'done', mine: true, timer: null,
+      return { ...base, sect: 'confirm', mine: true, timer: askedStr(b),
         say: 'The salon refused. She has been told and offered another day.',
         primary: [V('resolve', 'OK', 'pri')], more: [] };
     return { ...base, sect: 'confirm', mine: true, timer: null, say: 'Needs a look.',
@@ -310,9 +318,11 @@ function cardOf(b, helpers){
   if(conf){
     if(slotPassed(b)) return { ...base, sect: 'settle', mine: true, late: true, timer: passedStr(b),
       say: 'Did ' + she + ' come?', primary: attend,
-      helper: 'Fee applies only if ' + she + ' came.',
+      helper: 'fee applies only if ' + she + ' came',
       foot: b.checkin_sent_at && !b.client_checkin ? 'the client was asked too — her answer also settles it' : null };
+    // already confirmed: the same two buttons stay, spent — grey and dead, so the card keeps its shape
     return { ...base, sect: 'confirmed', mine: false, timer: untilStr(b), say: 'Confirmed. Nothing to do until ' + she + ' arrives.',
+      primary: [V('', 'Confirm', 'dis'), V('', 'Refuse', 'dis')],
       more: [V('salon_cancel', 'Salon cancels'), V('client_cancel', 'Client cancelled')] };
   }
 
@@ -329,8 +339,10 @@ function verbsHtml(b, m){
   let h = '';
   if(primary.length || more.length || m.callPri){
     h += '<div class="verbs">';
-    if(m.callPri && m.tel) h += '<a class="v pri" href="tel:+' + m.tel + '">Call salon</a>';
-    for(const x of primary) h += '<button class="v ' + x.kind + '" data-a="' + x.a + '" data-id="' + b.id + '" data-ref="' + esc(b.ref) + '">' + x.label + '</button>';
+    if(m.callPri && m.tel) h += '<a class="v" href="tel:+' + m.tel + '">Call salon</a>';
+    for(const x of primary) h += x.kind === 'dis'
+      ? '<button class="v dis" disabled>' + x.label + '</button>'
+      : '<button class="v ' + x.kind + '" data-a="' + x.a + '" data-id="' + b.id + '" data-ref="' + esc(b.ref) + '">' + x.label + '</button>';
     if(more.length || (m.tel && !m.callPri))
       h += moreOpen[b.id]
         ? '<button class="vq" data-a="more_close" data-id="' + b.id + '">Fewer</button>'
@@ -421,16 +433,26 @@ async function bookingsView(){
     rec += row('Status', m.say, 'st');
     const meta = [esc(b.ref)]
       .concat(m.timer ? ['<span class="' + (m.late ? 'late' : '') + '">' + esc(m.timer) + '</span>'] : [])
-      .concat(m.ticks ? [esc(m.ticks)] : []).concat(m.foot ? [esc(m.foot)] : []).join(' · ');
+      .concat(m.ticks ? [esc(m.ticks)] : []).concat(m.helper ? [esc(m.helper)] : [])
+      .concat(m.foot ? [esc(m.foot)] : []).join(' · ');
     return '<div class="q' + (m.mine ? '' : ' quiet') + '">' +
       '<div class="qt">' + first(b.customer_name) +
         '<span class="tw">' + esc(slotStr(b)) + '</span>' +
         (phone ? '<a class="tel" href="tel:+' + phone + '">' + esc(telStr(phone)) + '</a>' : '') + '</div>' +
       '<dl class="rec">' + rec + '</dl>' +
       (proposeOpen[b.id] ? proposeEditor(b) : verbsHtml(b, m)) +
-      (m.helper ? '<div class="qh">' + m.helper + '</div>' : '') +
       '<div class="qm">' + (meta ? '<span>' + meta + '</span>' : '') + timelineHtml(b, t) + '</div>' +
       '</div>';
+  }
+
+  // Done only: the finished booking as one plain line — the record collapsed, nothing to do
+  function line(b){
+    const m = model.get(b.id);
+    return '<div class="ln"><span class="nm">' + first(b.customer_name) + '</span>' +
+      '<span class="tw">' + esc(slotStr(b)) + '</span>' +
+      '<span class="what">' + esc(b.deals?.service_name || '?') + ' · ' + esc(b.salons?.name || '?') + '</span>' +
+      '<span class="st">' + m.say + '</span>' +
+      '<span class="ref">' + esc(b.ref) + '</span></div>';
   }
 
   if(archiveMode){
@@ -449,15 +471,15 @@ async function bookingsView(){
   let h = '';
   if(!yours) h += '<div class="zen"><b>✓</b> Nothing needs you' +
     (running ? ' — ' + running + ' booking' + (running > 1 ? 's' : '') + ' running on ' + (running > 1 ? 'their' : 'its') + ' own.' : ' today.') + '</div>';
-  const section = (title, rows, empty, extra) =>
+  const section = (title, rows, empty, extra, render) =>
     '<div class="sect"><h2>' + title + '</h2>' + (rows.length ? '<span class="muted">' + rows.length + '</span>' : '') +
       (extra || '') + '</div>' +
-    (rows.length ? rows.map(card).join('') : '<p class="muted">' + empty + '</p>');
+    (rows.length ? rows.map(render || card).join('') : '<p class="muted">' + empty + '</p>');
   h += section('To confirm', toConfirm, 'Nothing waiting on a salon.');
   h += section('Confirmed', confirmed, 'Nothing booked ahead.');
   h += section('Did they come?', toSettle, 'Nothing to settle.');
   h += section('Done', done, 'Nothing finished yet today.',
-    '<button class="tb" data-arch="on" style="margin-left:auto">Archive →</button>');
+    '<button class="tb" data-arch="on" style="margin-left:auto">Archive →</button>', line);
 
   app.innerHTML = h;
   wire();
